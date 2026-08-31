@@ -1,7 +1,8 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
-// const Hackathon = require("./models/Hackathon");
+const hackathonRoutes = require("./routes/hackathonRoutes");
+
 // const User = require("./models/User");
 // const Team = require("./models/Team");
 // const Submission = require("./models/Submission");
@@ -9,10 +10,11 @@ const cors = require("cors");
 // const Registration = require("./models/Registration");
 const userRoutes = require("./routes/userRoutes");
 
-
-
+const teamRoutes = require("./routes/teamRoutes");
+const submissionRoutes = require("./routes/submissionRoutes");
 const connectDB = require("./config/db");
-
+const evaluationRoutes = require("./routes/evaluationRoutes");
+const resultRoutes = require("./routes/resultRoutes");
 // Load environment variables
 dotenv.config();
 
@@ -22,9 +24,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 // Routes
-app.use("/api/users", userRoutes);
-router.post("/login", loginUser);
+app.use("/users", userRoutes);
+// router.post("/login", loginUser);
+const registrationRoutes = require("./routes/registrationRoutes");
 
+app.use("/registrations", registrationRoutes);
+app.use("/hackathons", hackathonRoutes);
+app.use("/teams", teamRoutes);
+app.use("/submissions", submissionRoutes);
+app.use("/evaluations", evaluationRoutes);
+app.use("/results", resultRoutes);
 // Connect to MongoDB
 connectDB();
 
