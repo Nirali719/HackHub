@@ -1,5 +1,7 @@
 const express = require("express");
 
+const protect = require("../middleware/authMiddleware");
+const authorize = require("../middleware/roleMiddleware");
 const {
   createRegistration,
   getRegistrations,
@@ -10,10 +12,10 @@ const {
 
 const router = express.Router();
 
-router.post("/", createRegistration);
-router.get("/", getRegistrations);
-router.get("/:id", getRegistrationById);
-router.put("/:id", updateRegistration);
-router.delete("/:id", deleteRegistration);
+router.post("/",protect,authorize("participant"), createRegistration);
+router.get("/",protect,authorize("participant","admin"),getRegistrations);
+router.get("/:id",protect, authorize("participant", "admin"),getRegistrationById);
+router.put("/:id",protect,authorize("admin"), updateRegistration);
+router.delete("/:id",protect,authorize("participant","admin"), deleteRegistration);
 
 module.exports = router;

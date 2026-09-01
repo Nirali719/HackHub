@@ -5,7 +5,8 @@ const Submission = require("../models/Submission");
 const Evaluation = require("../models/Evaluation");
 
 // ==========================================
-// CREATE RESULT MANUALLY
+// CREATE RESULT
+// ADMIN ONLY
 // ==========================================
 
 const createResult = async (req, res) => {
@@ -18,6 +19,7 @@ const createResult = async (req, res) => {
       resultStatus,
     } = req.body;
 
+    // Check required fields
     if (
       !hackathon ||
       !teamId ||
@@ -61,30 +63,7 @@ const createResult = async (req, res) => {
       });
     }
 
-    // Make sure submission belongs to team
-    if (submissionData.team.toString() !== teamId) {
-      return res.status(400).json({
-        success: false,
-        message: "Submission does not belong to this team",
-      });
-    }
-
-    // Make sure submission belongs to hackathon
-    if (submissionData.hackathon.toString() !== hackathon) {
-      return res.status(400).json({
-        success: false,
-        message: "Submission does not belong to this hackathon",
-      });
-    }
-
-    if (finalScore < 0 || finalScore > 100) {
-      return res.status(400).json({
-        success: false,
-        message: "Final score must be between 0 and 100",
-      });
-    }
-
-    // Check existing result
+    // Check duplicate result
     const existingResult = await Result.findOne({
       hackathon,
       teamId,
@@ -97,6 +76,7 @@ const createResult = async (req, res) => {
       });
     }
 
+    // Create result
     const result = await Result.create({
       hackathon,
       teamId,
@@ -107,7 +87,7 @@ const createResult = async (req, res) => {
 
     const populatedResult = await Result.findById(result._id)
       .populate("hackathon", "title status")
-      .populate("teamId", "teamName leader members")
+      .populate("teamId", "teamName leader")
       .populate("submission", "projectTitle status");
 
     res.status(201).json({
@@ -115,6 +95,7 @@ const createResult = async (req, res) => {
       message: "Result created successfully",
       result: populatedResult,
     });
+
   } catch (error) {
     console.error("Create Result Error:", error);
 
@@ -135,7 +116,7 @@ const getResults = async (req, res) => {
   try {
     const results = await Result.find()
       .populate("hackathon", "title status")
-      .populate("teamId", "teamName leader members")
+      .populate("teamId", "teamName leader")
       .populate("submission", "projectTitle status")
       .sort({ finalScore: -1 });
 
@@ -144,6 +125,7 @@ const getResults = async (req, res) => {
       count: results.length,
       results,
     });
+
   } catch (error) {
     console.error("Get Results Error:", error);
 
@@ -165,7 +147,7 @@ const getResultById = async (req, res) => {
     const result = await Result.findById(req.params.id)
       .populate("hackathon", "title status")
       .populate("teamId", "teamName leader members")
-      .populate("submission", "projectTitle status");
+      .populate("submission", "projectTitle description status");
 
     if (!result) {
       return res.status(404).json({
@@ -178,6 +160,7 @@ const getResultById = async (req, res) => {
       success: true,
       result,
     });
+
   } catch (error) {
     console.error("Get Result Error:", error);
 
@@ -199,6 +182,7 @@ const getResultsByHackathon = async (req, res) => {
     const results = await Result.find({
       hackathon: req.params.hackathonId,
     })
+      .populate("hackathon", "title status")
       .populate("teamId", "teamName leader members")
       .populate("submission", "projectTitle status")
       .sort({ finalScore: -1 });
@@ -208,6 +192,7 @@ const getResultsByHackathon = async (req, res) => {
       count: results.length,
       results,
     });
+
   } catch (error) {
     console.error("Get Hackathon Results Error:", error);
 
@@ -222,11 +207,15 @@ const getResultsByHackathon = async (req, res) => {
 
 // ==========================================
 // UPDATE RESULT
+// ADMIN ONLY
 // ==========================================
 
 const updateResult = async (req, res) => {
   try {
-    const { finalScore, resultStatus } = req.body;
+    const {
+      finalScore,
+      resultStatus,
+    } = req.body;
 
     const result = await Result.findById(req.params.id);
 
@@ -238,17 +227,10 @@ const updateResult = async (req, res) => {
     }
 
     if (finalScore !== undefined) {
-      if (finalScore < 0 || finalScore > 100) {
-        return res.status(400).json({
-          success: false,
-          message: "Final score must be between 0 and 100",
-        });
-      }
-
       result.finalScore = finalScore;
     }
 
-    if (resultStatus) {
+    if (resultStatus !== undefined) {
       result.resultStatus = resultStatus;
     }
 
@@ -259,6 +241,7 @@ const updateResult = async (req, res) => {
       message: "Result updated successfully",
       result,
     });
+
   } catch (error) {
     console.error("Update Result Error:", error);
 
@@ -273,6 +256,7 @@ const updateResult = async (req, res) => {
 
 // ==========================================
 // DELETE RESULT
+// ADMIN ONLY
 // ==========================================
 
 const deleteResult = async (req, res) => {
@@ -290,6 +274,7 @@ const deleteResult = async (req, res) => {
       success: true,
       message: "Result deleted successfully",
     });
+
   } catch (error) {
     console.error("Delete Result Error:", error);
 
@@ -304,6 +289,7 @@ const deleteResult = async (req, res) => {
 
 // ==========================================
 // GENERATE RESULTS AUTOMATICALLY
+// ADMIN ONLY
 // ==========================================
 
 const generateResults = async (req, res) => {
@@ -320,62 +306,53 @@ const generateResults = async (req, res) => {
       });
     }
 
-    // Find submitted submissions
+    // Get all submissions for hackathon
     const submissions = await Submission.find({
       hackathon: hackathonId,
-      status: {
-        $in: ["submitted", "under_review", "evaluated"],
-      },
     });
 
     if (submissions.length === 0) {
-      return res.status(400).json({
+      return res.status(404).json({
         success: false,
-        message: "No submitted projects found",
+        message: "No submissions found for this hackathon",
       });
     }
 
+    // Remove old results before generating new ones
+    await Result.deleteMany({
+      hackathon: hackathonId,
+    });
+
     const generatedResults = [];
 
+    // Calculate average score for every submission
     for (const submission of submissions) {
-      // Find evaluations for this submission
+
       const evaluations = await Evaluation.find({
         submission: submission._id,
       });
 
+      // Skip submissions with no evaluations
       if (evaluations.length === 0) {
         continue;
       }
 
-      // Calculate average score
-      const totalScore = evaluations.reduce(
-        (total, evaluation) => total + evaluation.score,
-        0
-      );
+      let totalScore = 0;
 
-      const finalScore =
-        totalScore / evaluations.length;
-
-      // Find existing result
-      let result = await Result.findOne({
-        hackathon: hackathonId,
-        teamId: submission.team,
+      evaluations.forEach((evaluation) => {
+        totalScore += evaluation.score;
       });
 
-      if (!result) {
-        result = await Result.create({
-          hackathon: hackathonId,
-          teamId: submission.team,
-          submission: submission._id,
-          finalScore: Number(finalScore.toFixed(2)),
-          resultStatus: "participant",
-        });
-      } else {
-        result.finalScore = Number(finalScore.toFixed(2));
-        await result.save();
-      }
+      const averageScore =
+        totalScore / evaluations.length;
 
-      generatedResults.push(result);
+      generatedResults.push({
+        hackathon: hackathonId,
+        teamId: submission.team,
+        submission: submission._id,
+        finalScore: averageScore,
+        resultStatus: "participant",
+      });
     }
 
     if (generatedResults.length === 0) {
@@ -385,38 +362,37 @@ const generateResults = async (req, res) => {
       });
     }
 
-    // Sort highest score first
+    // Sort results by score (highest first)
     generatedResults.sort(
       (a, b) => b.finalScore - a.finalScore
     );
 
-    // Assign result status
-    for (let i = 0; i < generatedResults.length; i++) {
-      if (i === 0) {
-        generatedResults[i].resultStatus = "winner";
-      } else if (i === 1) {
-        generatedResults[i].resultStatus = "runner_up";
-      } else if (i < 3) {
-        generatedResults[i].resultStatus = "finalist";
+    // Assign result positions
+    generatedResults.forEach((result, index) => {
+
+      if (index === 0) {
+        result.resultStatus = "winner";
+      } else if (index === 1) {
+        result.resultStatus = "runner_up";
+      } else if (index === 2) {
+        result.resultStatus = "finalist";
       } else {
-        generatedResults[i].resultStatus = "participant";
+        result.resultStatus = "participant";
       }
 
-      await generatedResults[i].save();
-    }
+    });
 
-    const finalResults = await Result.find({
-      hackathon: hackathonId,
-    })
-      .populate("teamId", "teamName leader members")
-      .populate("submission", "projectTitle status")
-      .sort({ finalScore: -1 });
+    // Save all results
+    const results =
+      await Result.insertMany(generatedResults);
 
-    res.status(200).json({
+    res.status(201).json({
       success: true,
       message: "Results generated successfully",
-      results: finalResults,
+      count: results.length,
+      results,
     });
+
   } catch (error) {
     console.error("Generate Results Error:", error);
 
@@ -428,6 +404,10 @@ const generateResults = async (req, res) => {
   }
 };
 
+
+// ==========================================
+// EXPORT FUNCTIONS
+// ==========================================
 
 module.exports = {
   createResult,

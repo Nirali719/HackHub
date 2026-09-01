@@ -6,7 +6,7 @@ const createHackathon = async (req, res) => {
     const {
       title,
       description,
-      organizer,
+      // organizer,
       eligibility,
       registrationDeadline,
       submissionDeadline,
@@ -19,7 +19,7 @@ const createHackathon = async (req, res) => {
     if (
       !title ||
       !description ||
-      !organizer ||
+      // !organizer ||
       !registrationDeadline ||
       !submissionDeadline ||
       !startDate ||
@@ -34,7 +34,6 @@ const createHackathon = async (req, res) => {
     const hackathon = await Hackathon.create({
       title,
       description,
-      organizer,
       eligibility,
       registrationDeadline,
       submissionDeadline,
@@ -42,6 +41,7 @@ const createHackathon = async (req, res) => {
       endDate,
       maxTeamSize,
       status,
+      organizer: req.user._id
     });
 
     res.status(201).json({

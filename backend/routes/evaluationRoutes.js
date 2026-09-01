@@ -1,23 +1,86 @@
 const express = require("express");
 
+const router = express.Router();
+
+const protect = require("../middleware/authMiddleware");
+const authorize = require("../middleware/roleMiddleware");
+
 const {
   createEvaluation,
   getEvaluations,
   getEvaluationById,
   updateEvaluation,
-  deleteEvaluation,
+  deleteEvaluation
 } = require("../controllers/evaluationController");
 
-const router = express.Router();
 
-router.post("/", createEvaluation);
+// ==========================================
+// CREATE EVALUATION
+// JUDGE ONLY
+// ==========================================
 
-router.get("/", getEvaluations);
+router.post(
+  "/",
+  protect,
+  authorize("judge"),
+  createEvaluation
+);
 
-router.get("/:id", getEvaluationById);
 
-router.put("/:id", updateEvaluation);
+// ==========================================
+// GET EVALUATIONS
+// JUDGE → OWN
+// ADMIN → ALL
+// ==========================================
 
-router.delete("/:id", deleteEvaluation);
+router.get(
+  "/",
+  protect,
+  authorize("judge", "admin"),
+  getEvaluations
+);
+
+
+// ==========================================
+// GET SINGLE EVALUATION
+// JUDGE → OWN
+// ADMIN → ANY
+// ==========================================
+
+router.get(
+  "/:id",
+  protect,
+  authorize("judge", "admin"),
+  getEvaluationById
+);
+
+
+// ==========================================
+// UPDATE EVALUATION
+// JUDGE → OWN
+// ADMIN → ANY
+// ==========================================
+
+router.put(
+  "/:id",
+  protect,
+  authorize("judge", "admin"),
+  updateEvaluation
+);
+
+
+// ==========================================
+// DELETE EVALUATION
+// JUDGE → OWN
+// ADMIN → ANY
+// ==========================================
+
+router.delete(
+  "/:id",
+  protect,
+  authorize("judge", "admin"),
+  deleteEvaluation
+);
+
 
 module.exports = router;

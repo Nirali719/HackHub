@@ -5,6 +5,7 @@ const Hackathon = require("../models/Hackathon");
 
 // ==========================================
 // CREATE SUBMISSION
+// TEAM LEADER ONLY
 // ==========================================
 
 const createSubmission = async (req, res) => {
@@ -15,10 +16,9 @@ const createSubmission = async (req, res) => {
       projectTitle,
       description,
       githubUrl,
-      demoUrl,
+      demoUrl
     } = req.body;
 
-    // Check required fields
     if (
       !hackathon ||
       !team ||
@@ -29,48 +29,59 @@ const createSubmission = async (req, res) => {
       return res.status(400).json({
         success: false,
         message:
-          "Hackathon, team, project title, description and GitHub URL are required",
+          "Hackathon, team, project title, description and GitHub URL are required"
       });
     }
 
-    // Check hackathon
+    // Check hackathon exists
     const hackathonData = await Hackathon.findById(hackathon);
 
     if (!hackathonData) {
       return res.status(404).json({
         success: false,
-        message: "Hackathon not found",
+        message: "Hackathon not found"
       });
     }
 
-    // Check team
+    // Check team exists
     const teamData = await Team.findById(team);
 
     if (!teamData) {
       return res.status(404).json({
         success: false,
-        message: "Team not found",
+        message: "Team not found"
       });
     }
 
-    // Make sure team belongs to this hackathon
-    if (teamData.hackathon.toString() !== hackathon) {
+    // Check team belongs to this hackathon
+    if (teamData.hackathon.toString() !== hackathon.toString()) {
       return res.status(400).json({
         success: false,
-        message: "Team does not belong to this hackathon",
+        message: "Team does not belong to this hackathon"
       });
     }
 
-    // Check if submission already exists
+    // Check logged-in user is the team leader
+    if (
+      req.user.role !== "admin" &&
+      teamData.leader.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the team leader can create a submission"
+      });
+    }
+
+    // Check submission already exists
     const existingSubmission = await Submission.findOne({
       hackathon,
-      team,
+      team
     });
 
     if (existingSubmission) {
       return res.status(400).json({
         success: false,
-        message: "A submission already exists for this team",
+        message: "A submission already exists for this team"
       });
     }
 
@@ -82,7 +93,7 @@ const createSubmission = async (req, res) => {
       description,
       githubUrl,
       demoUrl,
-      status: "draft",
+      status: "draft"
     });
 
     const populatedSubmission = await Submission.findById(
@@ -94,15 +105,16 @@ const createSubmission = async (req, res) => {
     res.status(201).json({
       success: true,
       message: "Submission created successfully",
-      submission: populatedSubmission,
+      submission: populatedSubmission
     });
+
   } catch (error) {
     console.error("Create Submission Error:", error);
 
     res.status(500).json({
       success: false,
       message: "Error creating submission",
-      error: error.message,
+      error: error.message
     });
   }
 };
@@ -110,6 +122,7 @@ const createSubmission = async (req, res) => {
 
 // ==========================================
 // GET ALL SUBMISSIONS
+// ALL LOGGED-IN USERS
 // ==========================================
 
 const getSubmissions = async (req, res) => {
@@ -122,22 +135,22 @@ const getSubmissions = async (req, res) => {
     res.status(200).json({
       success: true,
       count: submissions.length,
-      submissions,
+      submissions
     });
-  } catch (error) {
-    console.error("Get Submissions Error:", error);
 
+  } catch (error) {
     res.status(500).json({
       success: false,
       message: "Error fetching submissions",
-      error: error.message,
+      error: error.message
     });
   }
 };
 
 
 // ==========================================
-// GET SUBMISSION BY ID
+// GET SINGLE SUBMISSION
+// ALL LOGGED-IN USERS
 // ==========================================
 
 const getSubmissionById = async (req, res) => {
@@ -149,21 +162,20 @@ const getSubmissionById = async (req, res) => {
     if (!submission) {
       return res.status(404).json({
         success: false,
-        message: "Submission not found",
+        message: "Submission not found"
       });
     }
 
     res.status(200).json({
       success: true,
-      submission,
+      submission
     });
-  } catch (error) {
-    console.error("Get Submission Error:", error);
 
+  } catch (error) {
     res.status(500).json({
       success: false,
       message: "Error fetching submission",
-      error: error.message,
+      error: error.message
     });
   }
 };
@@ -171,6 +183,7 @@ const getSubmissionById = async (req, res) => {
 
 // ==========================================
 // UPDATE SUBMISSION
+// TEAM LEADER OR ADMIN
 // ==========================================
 
 const updateSubmission = async (req, res) => {
@@ -179,7 +192,7 @@ const updateSubmission = async (req, res) => {
       projectTitle,
       description,
       githubUrl,
-      demoUrl,
+      demoUrl
     } = req.body;
 
     const submission = await Submission.findById(req.params.id);
@@ -187,15 +200,36 @@ const updateSubmission = async (req, res) => {
     if (!submission) {
       return res.status(404).json({
         success: false,
-        message: "Submission not found",
+        message: "Submission not found"
       });
     }
 
-    // Do not allow editing an evaluated submission
+    // Get team
+    const team = await Team.findById(submission.team);
+
+    if (!team) {
+      return res.status(404).json({
+        success: false,
+        message: "Team not found"
+      });
+    }
+
+    // Check team leader ownership
+    if (
+      req.user.role !== "admin" &&
+      team.leader.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the team leader can update this submission"
+      });
+    }
+
+    // Cannot modify evaluated submission
     if (submission.status === "evaluated") {
       return res.status(400).json({
         success: false,
-        message: "Evaluated submission cannot be modified",
+        message: "Evaluated submission cannot be modified"
       });
     }
 
@@ -217,24 +251,21 @@ const updateSubmission = async (req, res) => {
 
     await submission.save();
 
-    const updatedSubmission = await Submission.findById(
-      submission._id
-    )
+    const updatedSubmission = await Submission.findById(submission._id)
       .populate("hackathon", "title submissionDeadline status")
       .populate("team", "teamName leader members");
 
     res.status(200).json({
       success: true,
       message: "Submission updated successfully",
-      submission: updatedSubmission,
+      submission: updatedSubmission
     });
-  } catch (error) {
-    console.error("Update Submission Error:", error);
 
+  } catch (error) {
     res.status(500).json({
       success: false,
       message: "Error updating submission",
-      error: error.message,
+      error: error.message
     });
   }
 };
@@ -242,32 +273,60 @@ const updateSubmission = async (req, res) => {
 
 // ==========================================
 // DELETE SUBMISSION
+// TEAM LEADER OR ADMIN
 // ==========================================
 
 const deleteSubmission = async (req, res) => {
   try {
-    const submission = await Submission.findByIdAndDelete(
-      req.params.id
-    );
+    const submission = await Submission.findById(req.params.id);
 
     if (!submission) {
       return res.status(404).json({
         success: false,
-        message: "Submission not found",
+        message: "Submission not found"
       });
     }
 
+    const team = await Team.findById(submission.team);
+
+    if (!team) {
+      return res.status(404).json({
+        success: false,
+        message: "Team not found"
+      });
+    }
+
+    // Check team leader
+    if (
+      req.user.role !== "admin" &&
+      team.leader.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the team leader can delete this submission"
+      });
+    }
+
+    // Optional: Don't allow deleting evaluated submission
+    if (submission.status === "evaluated") {
+      return res.status(400).json({
+        success: false,
+        message: "Evaluated submission cannot be deleted"
+      });
+    }
+
+    await Submission.findByIdAndDelete(req.params.id);
+
     res.status(200).json({
       success: true,
-      message: "Submission deleted successfully",
+      message: "Submission deleted successfully"
     });
-  } catch (error) {
-    console.error("Delete Submission Error:", error);
 
+  } catch (error) {
     res.status(500).json({
       success: false,
       message: "Error deleting submission",
-      error: error.message,
+      error: error.message
     });
   }
 };
@@ -275,6 +334,7 @@ const deleteSubmission = async (req, res) => {
 
 // ==========================================
 // SUBMIT PROJECT
+// TEAM LEADER ONLY
 // ==========================================
 
 const submitSubmission = async (req, res) => {
@@ -285,7 +345,28 @@ const submitSubmission = async (req, res) => {
     if (!submission) {
       return res.status(404).json({
         success: false,
-        message: "Submission not found",
+        message: "Submission not found"
+      });
+    }
+
+    // Get team
+    const team = await Team.findById(submission.team);
+
+    if (!team) {
+      return res.status(404).json({
+        success: false,
+        message: "Team not found"
+      });
+    }
+
+    // Check team leader
+    if (
+      req.user.role !== "admin" &&
+      team.leader.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the team leader can submit this project"
       });
     }
 
@@ -297,18 +378,18 @@ const submitSubmission = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "Submission has already been submitted",
+        message: "Submission has already been submitted"
       });
     }
 
-    // Check submission deadline
+    // Check deadline
     if (
       submission.hackathon.submissionDeadline &&
       new Date() > new Date(submission.hackathon.submissionDeadline)
     ) {
       return res.status(400).json({
         success: false,
-        message: "Submission deadline has passed",
+        message: "Submission deadline has passed"
       });
     }
 
@@ -320,15 +401,14 @@ const submitSubmission = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Project submitted successfully",
-      submission,
+      submission
     });
-  } catch (error) {
-    console.error("Submit Submission Error:", error);
 
+  } catch (error) {
     res.status(500).json({
       success: false,
       message: "Error submitting project",
-      error: error.message,
+      error: error.message
     });
   }
 };
@@ -340,5 +420,5 @@ module.exports = {
   getSubmissionById,
   updateSubmission,
   deleteSubmission,
-  submitSubmission,
+  submitSubmission
 };

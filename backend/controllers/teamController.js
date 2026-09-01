@@ -1,74 +1,45 @@
 const Team = require("../models/Team");
-const User = require("../models/User");
 const Hackathon = require("../models/Hackathon");
+const User = require("../models/User");
+
 
 // ==========================================
 // CREATE TEAM
+// POST /api/teams
+// PARTICIPANT ONLY
 // ==========================================
 
 const createTeam = async (req, res) => {
   try {
-    const { teamName, hackathon, leader } = req.body;
+    const { teamName, hackathon } = req.body;
 
-    // Check required fields
-    if (!teamName || !hackathon || !leader) {
+    if (!teamName || !hackathon) {
       return res.status(400).json({
         success: false,
-        message: "Team name, hackathon and leader are required",
+        message: "Team name and hackathon are required"
       });
     }
 
-    // Check hackathon
+    // Check hackathon exists
     const hackathonData = await Hackathon.findById(hackathon);
 
     if (!hackathonData) {
       return res.status(404).json({
         success: false,
-        message: "Hackathon not found",
+        message: "Hackathon not found"
       });
     }
 
-    // Check leader
-    const leaderUser = await User.findById(leader);
-
-    if (!leaderUser) {
-      return res.status(404).json({
-        success: false,
-        message: "Leader not found",
-      });
-    }
-
-    // Leader should be participant
-    if (leaderUser.role !== "participant") {
-      return res.status(400).json({
-        success: false,
-        message: "Only participants can create teams",
-      });
-    }
-
-    // Check if leader already has a team in this hackathon
+    // Check if participant already has a team
     const existingTeam = await Team.findOne({
-      hackathon,
-      members: leader,
+      hackathon: hackathon,
+      leader: req.user._id
     });
 
     if (existingTeam) {
       return res.status(400).json({
         success: false,
-        message: "This participant is already in a team",
-      });
-    }
-
-    // Check duplicate team name
-    const existingTeamName = await Team.findOne({
-      teamName,
-      hackathon,
-    });
-
-    if (existingTeamName) {
-      return res.status(400).json({
-        success: false,
-        message: "Team name already exists in this hackathon",
+        message: "You already lead a team in this hackathon"
       });
     }
 
@@ -76,27 +47,21 @@ const createTeam = async (req, res) => {
     const team = await Team.create({
       teamName,
       hackathon,
-      leader,
-      members: [leader],
+      leader: req.user._id,
+      members: [req.user._id]
     });
-
-    const populatedTeam = await Team.findById(team._id)
-      .populate("leader", "name email college")
-      .populate("members", "name email college")
-      .populate("hackathon", "title maxTeamSize");
 
     res.status(201).json({
       success: true,
       message: "Team created successfully",
-      team: populatedTeam,
+      team
     });
-  } catch (error) {
-    console.error("Create Team Error:", error);
 
+  } catch (error) {
     res.status(500).json({
       success: false,
       message: "Error creating team",
-      error: error.message,
+      error: error.message
     });
   }
 };
@@ -104,62 +69,63 @@ const createTeam = async (req, res) => {
 
 // ==========================================
 // GET ALL TEAMS
+// GET /api/teams
+// PARTICIPANT AND ADMIN
 // ==========================================
 
 const getTeams = async (req, res) => {
   try {
     const teams = await Team.find()
-      .populate("leader", "name email college")
-      .populate("members", "name email college")
-      .populate("hackathon", "title maxTeamSize status")
-      .sort({ createdAt: -1 });
+      .populate("hackathon", "title status")
+      .populate("leader", "name email")
+      .populate("members", "name email");
 
     res.status(200).json({
       success: true,
       count: teams.length,
-      teams,
+      teams
     });
-  } catch (error) {
-    console.error("Get Teams Error:", error);
 
+  } catch (error) {
     res.status(500).json({
       success: false,
       message: "Error fetching teams",
-      error: error.message,
+      error: error.message
     });
   }
 };
 
 
 // ==========================================
-// GET TEAM BY ID
+// GET SINGLE TEAM
+// GET /api/teams/:id
+// PARTICIPANT AND ADMIN
 // ==========================================
 
 const getTeamById = async (req, res) => {
   try {
     const team = await Team.findById(req.params.id)
-      .populate("leader", "name email college")
-      .populate("members", "name email college")
-      .populate("hackathon", "title maxTeamSize status");
+      .populate("hackathon", "title status")
+      .populate("leader", "name email")
+      .populate("members", "name email");
 
     if (!team) {
       return res.status(404).json({
         success: false,
-        message: "Team not found",
+        message: "Team not found"
       });
     }
 
     res.status(200).json({
       success: true,
-      team,
+      team
     });
-  } catch (error) {
-    console.error("Get Team Error:", error);
 
+  } catch (error) {
     res.status(500).json({
       success: false,
       message: "Error fetching team",
-      error: error.message,
+      error: error.message
     });
   }
 };
@@ -167,35 +133,35 @@ const getTeamById = async (req, res) => {
 
 // ==========================================
 // UPDATE TEAM
+// PUT /api/teams/:id
+// TEAM LEADER OR ADMIN
 // ==========================================
 
 const updateTeam = async (req, res) => {
   try {
-    const { teamName, status } = req.body;
-
     const team = await Team.findById(req.params.id);
 
     if (!team) {
       return res.status(404).json({
         success: false,
-        message: "Team not found",
+        message: "Team not found"
       });
     }
 
-    if (teamName) {
-      const duplicateTeam = await Team.findOne({
-        teamName,
-        hackathon: team.hackathon,
-        _id: { $ne: team._id },
+    // Check ownership
+    if (
+      req.user.role !== "admin" &&
+      team.leader.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the team leader can update this team"
       });
+    }
 
-      if (duplicateTeam) {
-        return res.status(400).json({
-          success: false,
-          message: "Team name already exists in this hackathon",
-        });
-      }
+    const { teamName, status } = req.body;
 
+    if (teamName) {
       team.teamName = teamName;
     }
 
@@ -205,23 +171,17 @@ const updateTeam = async (req, res) => {
 
     await team.save();
 
-    const updatedTeam = await Team.findById(team._id)
-      .populate("leader", "name email college")
-      .populate("members", "name email college")
-      .populate("hackathon", "title maxTeamSize status");
-
     res.status(200).json({
       success: true,
       message: "Team updated successfully",
-      team: updatedTeam,
+      team
     });
-  } catch (error) {
-    console.error("Update Team Error:", error);
 
+  } catch (error) {
     res.status(500).json({
       success: false,
       message: "Error updating team",
-      error: error.message,
+      error: error.message
     });
   }
 };
@@ -229,30 +189,44 @@ const updateTeam = async (req, res) => {
 
 // ==========================================
 // DELETE TEAM
+// DELETE /api/teams/:id
+// TEAM LEADER OR ADMIN
 // ==========================================
 
 const deleteTeam = async (req, res) => {
   try {
-    const team = await Team.findByIdAndDelete(req.params.id);
+    const team = await Team.findById(req.params.id);
 
     if (!team) {
       return res.status(404).json({
         success: false,
-        message: "Team not found",
+        message: "Team not found"
       });
     }
 
+    // Check ownership
+    if (
+      req.user.role !== "admin" &&
+      team.leader.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the team leader can delete this team"
+      });
+    }
+
+    await Team.findByIdAndDelete(req.params.id);
+
     res.status(200).json({
       success: true,
-      message: "Team deleted successfully",
+      message: "Team deleted successfully"
     });
-  } catch (error) {
-    console.error("Delete Team Error:", error);
 
+  } catch (error) {
     res.status(500).json({
       success: false,
       message: "Error deleting team",
-      error: error.message,
+      error: error.message
     });
   }
 };
@@ -260,6 +234,8 @@ const deleteTeam = async (req, res) => {
 
 // ==========================================
 // ADD TEAM MEMBER
+// POST /api/teams/:id/members
+// TEAM LEADER OR ADMIN
 // ==========================================
 
 const addTeamMember = async (req, res) => {
@@ -269,7 +245,7 @@ const addTeamMember = async (req, res) => {
     if (!userId) {
       return res.status(400).json({
         success: false,
-        message: "User ID is required",
+        message: "User ID is required"
       });
     }
 
@@ -278,90 +254,62 @@ const addTeamMember = async (req, res) => {
     if (!team) {
       return res.status(404).json({
         success: false,
-        message: "Team not found",
+        message: "Team not found"
       });
     }
 
+    // Check ownership
+    if (
+      req.user.role !== "admin" &&
+      team.leader.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the team leader can add members"
+      });
+    }
+
+    // Check user exists
     const user = await User.findById(userId);
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found",
+        message: "User not found"
       });
     }
 
+    // Only participants can join teams
     if (user.role !== "participant") {
       return res.status(400).json({
         success: false,
-        message: "Only participants can join teams",
+        message: "Only participants can be team members"
       });
     }
 
-    // Check team size
-    const hackathon = await Hackathon.findById(team.hackathon);
-
-    if (!hackathon) {
-      return res.status(404).json({
-        success: false,
-        message: "Hackathon not found",
-      });
-    }
-
-    if (team.members.length >= hackathon.maxTeamSize) {
+    // Check if already a member
+    if (team.members.includes(userId)) {
       return res.status(400).json({
         success: false,
-        message: `Team cannot have more than ${hackathon.maxTeamSize} members`,
-      });
-    }
-
-    // Check if user is already in this team
-    if (team.members.some((member) => member.toString() === userId)) {
-      return res.status(400).json({
-        success: false,
-        message: "User is already a member of this team",
-      });
-    }
-
-    // Check if user is already in another team for same hackathon
-    const anotherTeam = await Team.findOne({
-      hackathon: team.hackathon,
-      members: userId,
-    });
-
-    if (anotherTeam) {
-      return res.status(400).json({
-        success: false,
-        message: "User is already a member of another team",
+        message: "User is already a team member"
       });
     }
 
     team.members.push(userId);
 
-    // Team becomes ready when maximum size is reached
-    if (team.members.length >= hackathon.maxTeamSize) {
-      team.status = "ready";
-    }
-
     await team.save();
-
-    const updatedTeam = await Team.findById(team._id)
-      .populate("leader", "name email college")
-      .populate("members", "name email college")
-      .populate("hackathon", "title maxTeamSize");
 
     res.status(200).json({
       success: true,
       message: "Member added successfully",
-      team: updatedTeam,
+      team
     });
-  } catch (error) {
-    console.error("Add Team Member Error:", error);
 
+  } catch (error) {
     res.status(500).json({
       success: false,
       message: "Error adding team member",
-      error: error.message,
+      error: error.message
     });
   }
 };
@@ -369,62 +317,72 @@ const addTeamMember = async (req, res) => {
 
 // ==========================================
 // REMOVE TEAM MEMBER
+// DELETE /api/teams/:id/members/:userId
+// TEAM LEADER OR ADMIN
 // ==========================================
 
 const removeTeamMember = async (req, res) => {
   try {
-    const { id, userId } = req.params;
-
-    const team = await Team.findById(id);
+    const team = await Team.findById(req.params.id);
 
     if (!team) {
       return res.status(404).json({
         success: false,
-        message: "Team not found",
+        message: "Team not found"
       });
     }
 
-    // Leader cannot be removed
+    // Check ownership
+    if (
+      req.user.role !== "admin" &&
+      team.leader.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the team leader can remove members"
+      });
+    }
+
+    const { userId } = req.params;
+
+    // Prevent removing team leader
     if (team.leader.toString() === userId) {
       return res.status(400).json({
         success: false,
-        message: "Team leader cannot be removed",
+        message: "Team leader cannot be removed"
       });
     }
 
-    const memberExists = team.members.some(
-      (member) => member.toString() === userId
+    // Check member exists in team
+    const isMember = team.members.some(
+      member => member.toString() === userId
     );
 
-    if (!memberExists) {
+    if (!isMember) {
       return res.status(404).json({
         success: false,
-        message: "User is not a member of this team",
+        message: "User is not a member of this team"
       });
     }
 
+    // Remove member
     team.members = team.members.filter(
-      (member) => member.toString() !== userId
+      member => member.toString() !== userId
     );
-
-    if (team.status === "ready") {
-      team.status = "forming";
-    }
 
     await team.save();
 
     res.status(200).json({
       success: true,
-      message: "Team member removed successfully",
-      team,
+      message: "Member removed successfully",
+      team
     });
-  } catch (error) {
-    console.error("Remove Team Member Error:", error);
 
+  } catch (error) {
     res.status(500).json({
       success: false,
       message: "Error removing team member",
-      error: error.message,
+      error: error.message
     });
   }
 };
@@ -437,5 +395,5 @@ module.exports = {
   updateTeam,
   deleteTeam,
   addTeamMember,
-  removeTeamMember,
+  removeTeamMember
 };

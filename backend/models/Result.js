@@ -23,7 +23,8 @@ const resultSchema = new mongoose.Schema(
     finalScore: {
       type: Number,
       required: true,
-      min: 0
+      min: 0,
+      max: 100
     },
 
     

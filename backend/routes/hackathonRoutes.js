@@ -1,4 +1,6 @@
 const express = require("express");
+const protect = require("../middleware/authMiddleware");
+const authorize = require("../middleware/roleMiddleware");
 
 const {
   createHackathon,
@@ -10,10 +12,10 @@ const {
 
 const router = express.Router();
 
-router.post("/", createHackathon);
+router.post("/",protect,authorize("admin"),createHackathon);
 router.get("/", getHackathons);
 router.get("/:id", getHackathonById);
-router.put("/:id", updateHackathon);
-router.delete("/:id", deleteHackathon);
+router.put("/:id",protect,authorize("admin"),updateHackathon);
+router.delete("/:id",protect,authorize("admin"),deleteHackathon);
 
 module.exports = router;

@@ -1,6 +1,6 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
-
+const jwt = require("jsonwebtoken");
 // ==========================================
 // REGISTER USER
 // ==========================================
@@ -10,7 +10,7 @@ const bcrypt = require("bcryptjs");
 // @access  Public
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, role, college } = req.body;
+    const { name, email, password, role, college , phone } = req.body;
 
     // Check required fields
     if (!name || !email || !password) {
@@ -50,6 +50,7 @@ const registerUser = async (req, res) => {
       password: hashedPassword,
       role: role || "participant",
       college,
+      phone,
     });
 
     // Send successful response
@@ -61,7 +62,6 @@ const registerUser = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        college: user.college,
       },
     });
   } catch (error) {
@@ -121,16 +121,28 @@ const loginUser = async (req, res) => {
       });
     }
 
+    // Create JWT token
+    const token = jwt.sign(
+      {
+          id: user._id,
+          role: user.role
+      },
+      process.env.JWT_SECRET,
+      {
+          expiresIn: "1d"
+      }
+    );
+
     // Login successful
     res.status(200).json({
       success: true,
       message: "Login successful",
+      token: token,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
-        college: user.college,
       },
     });
   } catch (error) {
@@ -145,10 +157,152 @@ const loginUser = async (req, res) => {
 };
 
 // ==========================================
+// GET MY PROFILE
+// GET /users/profile
+// ==========================================
+
+const getMyProfile = async (req, res) => {
+  try {
+    const user = req.user;
+
+    res.status(200).json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        college: user.college,
+        phone: user.phone
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching profile",
+      error: error.message
+    });
+  }
+};
+
+
+// ==========================================
+// UPDATE MY PROFILE
+// PUT /users/profile
+// ==========================================
+
+const updateMyProfile = async (req, res) => {
+  try {
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // Update only allowed fields
+    user.name = req.body.name || user.name;
+    user.email = req.body.email || user.email;
+    user.college = req.body.college || user.college;
+    user.phone = req.body.phone || user.phone;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        college: user.college,
+        phone: user.phone
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error updating profile",
+      error: error.message
+    });
+  }
+};
+
+
+// ==========================================
+// GET ALL USERS
+// GET /users
+// ADMIN ONLY
+// ==========================================
+
+const getAllUsers = async (req, res) => {
+  try {
+
+    const users = await User.find();
+
+    res.status(200).json({
+      success: true,
+      count: users.length,
+      users
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching users",
+      error: error.message
+    });
+  }
+};
+
+
+// ==========================================
+// DELETE USER
+// DELETE /users/:id
+// ADMIN ONLY
+// ==========================================
+
+const deleteUser = async (req, res) => {
+  try {
+
+    const user = await User.findByIdAndDelete(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "User deleted successfully"
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error deleting user",
+      error: error.message
+    });
+  }
+};
+
+// ==========================================
 // EXPORT FUNCTIONS
 // ==========================================
 
 module.exports = {
   registerUser,
   loginUser,
+  getMyProfile,
+  updateMyProfile,
+  getAllUsers,
+  deleteUser
 };
