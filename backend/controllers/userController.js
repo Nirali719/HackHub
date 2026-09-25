@@ -234,6 +234,60 @@ const updateMyProfile = async (req, res) => {
   }
 };
 
+// ==========================================
+// SEARCH PARTICIPANTS
+// GET /users/participants?search=rahul
+// PARTICIPANT AND ADMIN
+// ==========================================
+
+const searchParticipants = async (req, res) => {
+  try {
+    const { search } = req.query;
+
+    if (!search || search.trim().length < 2) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        users: []
+      });
+    }
+
+    const users = await User.find({
+      role: "participant",
+      $or: [
+        {
+          name: {
+            $regex: search.trim(),
+            $options: "i"
+          }
+        },
+        {
+          email: {
+            $regex: search.trim(),
+            $options: "i"
+          }
+        }
+      ]
+    })
+      .select("name email college")
+      .limit(10);
+
+    res.status(200).json({
+      success: true,
+      count: users.length,
+      users
+    });
+
+  } catch (error) {
+    console.error("Search Participants Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Error searching participants",
+      error: error.message
+    });
+  }
+};
 
 // ==========================================
 // GET ALL USERS
@@ -303,6 +357,7 @@ module.exports = {
   loginUser,
   getMyProfile,
   updateMyProfile,
+  searchParticipants,
   getAllUsers,
   deleteUser
 };

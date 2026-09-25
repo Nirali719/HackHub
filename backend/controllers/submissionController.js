@@ -93,7 +93,8 @@ const createSubmission = async (req, res) => {
       description,
       githubUrl,
       demoUrl,
-      status: "draft"
+      status: "draft",
+      submissionDate: new Date()
     });
 
     const populatedSubmission = await Submission.findById(

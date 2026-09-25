@@ -8,6 +8,7 @@ const {
     loginUser,
     getMyProfile,
     updateMyProfile,
+    searchParticipants,
     getAllUsers,
     deleteUser
   } = require("../controllers/userController");
@@ -42,7 +43,19 @@ router.get(
     updateMyProfile
   );
   
-  
+  // ==========================================
+// SEARCH PARTICIPANTS
+// GET /users/participants?search=name_or_email
+// PARTICIPANT AND ADMIN
+// ==========================================
+
+router.get(
+    "/participants",
+    protect,
+    authorize("participant", "admin"),
+    searchParticipants
+);
+
   // ==========================================
   // GET ALL USERS
   // GET /users
