@@ -12,7 +12,9 @@ const {
   updateTeam,
   deleteTeam,
   addTeamMember,
-  removeTeamMember
+  removeTeamMember,
+  assignMentor,
+  getMentorTeams
 } = require("../controllers/teamController");
 
 
@@ -40,6 +42,29 @@ router.get(
   authorize("participant", "admin"),
   getTeams
 );
+// ==========================================
+// GET MENTOR'S ASSIGNED TEAMS
+// MENTOR ONLY
+// ==========================================
+
+router.get(
+  "/mentor/my-teams",
+  protect,
+  authorize("mentor"),
+  getMentorTeams
+);
+
+// ==========================================
+// ASSIGN MENTOR
+// ADMIN ONLY
+// ==========================================
+
+router.put(
+  "/:id/mentor",
+  protect,
+  authorize("admin"),
+  assignMentor
+);
 
 
 // ==========================================
@@ -50,7 +75,7 @@ router.get(
 router.get(
   "/:id",
   protect,
-  authorize("participant", "admin"),
+  authorize("participant","mentor", "admin"),
   getTeamById
 );
 

@@ -1,4 +1,32 @@
 const Hackathon = require("../models/Hackathon");
+const getCurrentHackathonStatus = (hackathon) => {
+    const now = new Date();
+
+    if (hackathon.status === "cancelled") {
+        return "cancelled";
+    }
+
+    if (hackathon.status === "draft") {
+        return "draft";
+    }
+
+    if (now < new Date(hackathon.startDate)) {
+        return "published";
+    }
+
+    if (
+        now >= new Date(hackathon.startDate) &&
+        now <= new Date(hackathon.endDate)
+    ) {
+        return "ongoing";
+    }
+
+    if (now > new Date(hackathon.endDate)) {
+        return "completed";
+    }
+
+    return hackathon.status;
+};
 
 // Create Hackathon
 const createHackathon = async (req, res) => {
@@ -8,6 +36,7 @@ const createHackathon = async (req, res) => {
       description,
       // organizer,
       eligibility,
+      rules,
       registrationDeadline,
       submissionDeadline,
       startDate,
@@ -29,12 +58,20 @@ const createHackathon = async (req, res) => {
         success: false,
         message: "Required fields are missing",
       });
+      if (new Date(registrationDeadline) > new Date(submissionDeadline)) {
+  return res.status(400).json({
+    success: false,
+    message: "Registration deadline cannot be after the submission deadline"
+  });
+}
+
     }
 
     const hackathon = await Hackathon.create({
       title,
       description,
       eligibility,
+      rules,
       registrationDeadline,
       submissionDeadline,
       startDate,
@@ -63,6 +100,7 @@ const createHackathon = async (req, res) => {
 const getHackathons = async (req, res) => {
   try {
     const hackathons = await Hackathon.find()
+    
       .populate("organizer", "name email role")
       .sort({ createdAt: -1 });
 
@@ -111,6 +149,42 @@ const getHackathonById = async (req, res) => {
 // Update Hackathon
 const updateHackathon = async (req, res) => {
   try {
+    const existingHackathon = await Hackathon.findById(req.params.id);
+
+    if (!existingHackathon) {
+      return res.status(404).json({
+        success: false,
+        message: "Hackathon not found",
+      });
+    }
+
+    const {
+      registrationDeadline,
+      submissionDeadline
+    } = req.body;
+
+    // Use the new value if provided,
+    // otherwise keep the existing value.
+    const finalRegistrationDeadline =
+      registrationDeadline ||
+      existingHackathon.registrationDeadline;
+
+    const finalSubmissionDeadline =
+      submissionDeadline ||
+      existingHackathon.submissionDeadline;
+
+    // Registration deadline cannot be after submission deadline
+    if (
+      new Date(finalRegistrationDeadline) >
+      new Date(finalSubmissionDeadline)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Registration deadline cannot be after the submission deadline"
+      });
+    }
+
     const hackathon = await Hackathon.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -120,19 +194,15 @@ const updateHackathon = async (req, res) => {
       }
     );
 
-    if (!hackathon) {
-      return res.status(404).json({
-        success: false,
-        message: "Hackathon not found",
-      });
-    }
-
     res.status(200).json({
       success: true,
       message: "Hackathon updated successfully",
       hackathon,
     });
+
   } catch (error) {
+    console.error("Update Hackathon Error:", error);
+
     res.status(500).json({
       success: false,
       message: "Error updating hackathon",

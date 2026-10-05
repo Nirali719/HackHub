@@ -3,7 +3,195 @@ const Hackathon = require("../models/Hackathon");
 const Team = require("../models/Team");
 const Submission = require("../models/Submission");
 const Evaluation = require("../models/Evaluation");
+const Registration =
+    require("../models/Registration");
 
+const User =
+    require("../models/User");
+
+const {
+    sendResultAnnouncement
+} = require(
+    "../services/emailService"
+);
+const publishResults =
+    async (req, res) => {
+
+        try {
+
+            const {
+                hackathonId
+            } = req.params;
+
+
+            const hackathon =
+                await Hackathon.findById(
+                    hackathonId
+                );
+
+
+            if (!hackathon) {
+
+                return res.status(404).json({
+                    success: false,
+                    message:
+                        "Hackathon not found"
+                });
+            }
+
+
+            const results =
+                await Result.find({
+                    hackathon:
+                        hackathonId
+                });
+
+
+            if (
+                results.length === 0
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Generate results before publishing"
+                });
+            }
+
+
+            const publishedAt =
+                new Date();
+
+
+            await Result.updateMany(
+                {
+                    hackathon:
+                        hackathonId
+                },
+
+                {
+                    $set: {
+                        published: true,
+                        publishedAt
+                    }
+                }
+            );
+
+
+            // ======================================
+            // SEND RESULT EMAILS
+            // ======================================
+
+            const registrations =
+                await Registration.find({
+                    hackathon:
+                        hackathonId,
+
+                    status: {
+                        $ne: "cancelled"
+                    }
+                }).populate(
+                    "participant",
+                    "name email"
+                );
+
+
+            for (
+                const registration
+                of registrations
+            ) {
+
+                if (
+                    !registration.participant
+                ) {
+                    continue;
+                }
+
+
+                const user =
+                    registration.participant;
+
+
+                // Find the user's team result
+
+                
+
+
+                // Get user's teams
+                const team =
+                    await require(
+                        "../models/Team"
+                    ).findOne({
+
+                        hackathon:
+                            hackathonId,
+
+                        members:
+                            user._id
+                    });
+
+
+                let result =
+                    null;
+
+
+                if (team) {
+
+                    result =
+                        results.find(
+                            (item) =>
+                                item.teamId
+                                    .toString() ===
+                                team._id.toString()
+                        );
+                }
+
+
+                await sendResultAnnouncement({
+
+                    user,
+
+                    hackathon,
+
+                    result
+                });
+            }
+
+
+            res.status(200).json({
+
+                success: true,
+
+                message:
+                    "Results published and announcement emails sent successfully",
+
+                count:
+                    results.length,
+
+                publishedAt
+            });
+
+
+        } catch (error) {
+
+            console.error(
+                "Publish Results Error:",
+                error
+            );
+
+
+            res.status(500).json({
+
+                success: false,
+
+                message:
+                    "Error publishing results",
+
+                error:
+                    error.message
+            });
+        }
+    };
 // ==========================================
 // CREATE RESULT
 // ADMIN ONLY
@@ -329,13 +517,17 @@ const generateResults = async (req, res) => {
     for (const submission of submissions) {
 
       const evaluations = await Evaluation.find({
-        submission: submission._id,
+        submission: submission._id
       });
 
-      // Skip submissions with no evaluations
-      if (evaluations.length === 0) {
-        continue;
-      }
+
+// ==========================================
+// EXACTLY 3 JUDGES REQUIRED
+// ==========================================
+
+        if (evaluations.length !== 3) {
+            continue;
+        }
 
       let totalScore = 0;
 
@@ -417,4 +609,5 @@ module.exports = {
   updateResult,
   deleteResult,
   generateResults,
+  publishResults
 };

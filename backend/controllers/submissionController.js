@@ -2,6 +2,12 @@ const Submission = require("../models/Submission");
 const Team = require("../models/Team");
 const Hackathon = require("../models/Hackathon");
 
+const fs = require("fs");
+const path = require("path");
+
+const {
+    maxSizeMB
+} = require("../middleware/uploadMiddleware");
 
 // ==========================================
 // CREATE SUBMISSION
@@ -9,115 +15,225 @@ const Hackathon = require("../models/Hackathon");
 // ==========================================
 
 const createSubmission = async (req, res) => {
-  try {
-    const {
-      hackathon,
-      team,
-      projectTitle,
-      description,
-      githubUrl,
-      demoUrl
-    } = req.body;
 
-    if (
-      !hackathon ||
-      !team ||
-      !projectTitle ||
-      !description ||
-      !githubUrl
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Hackathon, team, project title, description and GitHub URL are required"
-      });
+    try {
+
+        const {
+            hackathon,
+            team,
+            projectTitle,
+            description,
+            githubUrl,
+            demoUrl
+        } = req.body;
+
+
+        if (
+            !hackathon ||
+            !team ||
+            !projectTitle ||
+            !description ||
+            !githubUrl
+        ) {
+
+            if (req.file) {
+                fs.unlinkSync(
+                    req.file.path
+                );
+            }
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Hackathon, team, project title, description and GitHub URL are required"
+            });
+        }
+
+
+        // PDF required for new submission
+
+        if (!req.file) {
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Submission PDF is required"
+            });
+        }
+
+
+        const hackathonData =
+            await Hackathon.findById(
+                hackathon
+            );
+
+        if (!hackathonData) {
+
+            fs.unlinkSync(
+                req.file.path
+            );
+
+            return res.status(404).json({
+                success: false,
+                message:
+                    "Hackathon not found"
+            });
+        }
+
+
+        const teamData =
+            await Team.findById(team);
+
+        if (!teamData) {
+
+            fs.unlinkSync(
+                req.file.path
+            );
+
+            return res.status(404).json({
+                success: false,
+                message:
+                    "Team not found"
+            });
+        }
+
+
+        if (
+            teamData.hackathon.toString() !==
+            hackathon.toString()
+        ) {
+
+            fs.unlinkSync(
+                req.file.path
+            );
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Team does not belong to this hackathon"
+            });
+        }
+
+
+        if (
+            req.user.role !== "admin" &&
+            teamData.leader.toString() !==
+                req.user._id.toString()
+        ) {
+
+            fs.unlinkSync(
+                req.file.path
+            );
+
+            return res.status(403).json({
+                success: false,
+                message:
+                    "Only the team leader can create a submission"
+            });
+        }
+
+
+        const existingSubmission =
+            await Submission.findOne({
+                hackathon,
+                team
+            });
+
+        if (existingSubmission) {
+
+            fs.unlinkSync(
+                req.file.path
+            );
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "A submission already exists for this team"
+            });
+        }
+
+
+        const submission =
+            await Submission.create({
+
+                hackathon,
+
+                team,
+
+                projectTitle,
+
+                description,
+
+                githubUrl,
+
+                demoUrl,
+
+                pdfFileName:
+                    req.file.filename,
+
+                pdfOriginalName:
+                    req.file.originalname,
+
+                pdfFilePath:
+                    req.file.path,
+
+                pdfSize:
+                    req.file.size,
+
+                status: "draft",
+
+                submissionDate:
+                    new Date()
+            });
+
+
+        const populatedSubmission =
+            await Submission.findById(
+                submission._id
+            )
+                .populate(
+                    "hackathon",
+                    "title submissionDeadline status"
+                )
+                .populate(
+                    "team",
+                    "teamName leader members"
+                );
+
+
+        res.status(201).json({
+            success: true,
+            message:
+                "Submission created successfully",
+            submission:
+                populatedSubmission
+        });
+
+
+    } catch (error) {
+
+        if (req.file) {
+
+            try {
+                fs.unlinkSync(
+                    req.file.path
+                );
+            } catch {}
+        }
+
+        console.error(
+            "Create Submission Error:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message:
+                "Error creating submission",
+            error:
+                error.message
+        });
     }
-
-    // Check hackathon exists
-    const hackathonData = await Hackathon.findById(hackathon);
-
-    if (!hackathonData) {
-      return res.status(404).json({
-        success: false,
-        message: "Hackathon not found"
-      });
-    }
-
-    // Check team exists
-    const teamData = await Team.findById(team);
-
-    if (!teamData) {
-      return res.status(404).json({
-        success: false,
-        message: "Team not found"
-      });
-    }
-
-    // Check team belongs to this hackathon
-    if (teamData.hackathon.toString() !== hackathon.toString()) {
-      return res.status(400).json({
-        success: false,
-        message: "Team does not belong to this hackathon"
-      });
-    }
-
-    // Check logged-in user is the team leader
-    if (
-      req.user.role !== "admin" &&
-      teamData.leader.toString() !== req.user._id.toString()
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "Only the team leader can create a submission"
-      });
-    }
-
-    // Check submission already exists
-    const existingSubmission = await Submission.findOne({
-      hackathon,
-      team
-    });
-
-    if (existingSubmission) {
-      return res.status(400).json({
-        success: false,
-        message: "A submission already exists for this team"
-      });
-    }
-
-    // Create submission
-    const submission = await Submission.create({
-      hackathon,
-      team,
-      projectTitle,
-      description,
-      githubUrl,
-      demoUrl,
-      status: "draft",
-      submissionDate: new Date()
-    });
-
-    const populatedSubmission = await Submission.findById(
-      submission._id
-    )
-      .populate("hackathon", "title submissionDeadline status")
-      .populate("team", "teamName leader members");
-
-    res.status(201).json({
-      success: true,
-      message: "Submission created successfully",
-      submission: populatedSubmission
-    });
-
-  } catch (error) {
-    console.error("Create Submission Error:", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Error creating submission",
-      error: error.message
-    });
-  }
 };
 
 
@@ -140,9 +256,100 @@ const getSubmissions = async (req, res) => {
     });
 
   } catch (error) {
+    console.error("Get Submissions Error:", error);
+
     res.status(500).json({
       success: false,
       message: "Error fetching submissions",
+      error: error.message
+    });
+  }
+};
+
+// ==========================================
+// GET ALL SUBMISSIONS
+// ALL LOGGED-IN USERS
+// ==========================================
+
+const getSubmissionByTeam = async (req, res) => {
+  try {
+    const { teamId } = req.params;
+
+    console.log("=================================");
+    console.log("GET SUBMISSION BY TEAM");
+    console.log("Team ID:", teamId);
+    console.log("Logged in user:", req.user._id);
+    console.log("Role:", req.user.role);
+
+    const team = await Team.findById(teamId);
+
+    if (!team) {
+      console.log("TEAM NOT FOUND");
+
+      return res.status(404).json({
+        success: false,
+        message: "Team not found"
+      });
+    }
+
+    console.log("Team found:", team._id);
+    console.log("Team mentor:", team.mentor);
+
+    // Mentor authorization
+    if (req.user.role === "mentor") {
+
+      if (
+        !team.mentor ||
+        team.mentor.toString() !== req.user._id.toString()
+      ) {
+        console.log("MENTOR NOT ASSIGNED TO THIS TEAM");
+
+        return res.status(403).json({
+          success: false,
+          message: "You are not assigned to this team"
+        });
+      }
+    }
+
+    const submission = await Submission.findOne({
+      team: teamId
+    })
+      .populate(
+        "hackathon",
+        "title status submissionDeadline"
+      )
+      .populate(
+        "team",
+        "teamName leader members mentor"
+      );
+
+    console.log(
+      "Submission found:",
+      submission ? submission._id : "NONE"
+    );
+
+    if (!submission) {
+      return res.status(404).json({
+        success: false,
+        message: "No submission found for this team"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      submission
+    });
+
+  } catch (error) {
+
+    console.error(
+      "GET SUBMISSION BY TEAM ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching team submission",
       error: error.message
     });
   }
@@ -249,7 +456,31 @@ const updateSubmission = async (req, res) => {
     if (demoUrl !== undefined) {
       submission.demoUrl = demoUrl;
     }
+if (req.file) {
 
+    if (
+        submission.pdfFilePath &&
+        fs.existsSync(
+            submission.pdfFilePath
+        )
+    ) {
+        fs.unlinkSync(
+            submission.pdfFilePath
+        );
+    }
+
+    submission.pdfFileName =
+        req.file.filename;
+
+    submission.pdfOriginalName =
+        req.file.originalname;
+
+    submission.pdfFilePath =
+        req.file.path;
+
+    submission.pdfSize =
+        req.file.size;
+}
     await submission.save();
 
     const updatedSubmission = await Submission.findById(submission._id)
@@ -322,6 +553,17 @@ const deleteSubmission = async (req, res) => {
       success: true,
       message: "Submission deleted successfully"
     });
+    if (
+    submission.pdfFilePath &&
+    fs.existsSync(
+        submission.pdfFilePath
+    )
+) {
+
+    fs.unlinkSync(
+        submission.pdfFilePath
+    );
+}
 
   } catch (error) {
     res.status(500).json({
@@ -393,6 +635,19 @@ const submitSubmission = async (req, res) => {
         message: "Submission deadline has passed"
       });
     }
+  if (
+    !submission.pdfFilePath ||
+    !fs.existsSync(
+        submission.pdfFilePath
+    )
+  ) {
+
+    return res.status(400).json({
+        success: false,
+        message:
+            "Please upload the submission PDF before submitting the project"
+    });
+    }
 
     submission.status = "submitted";
     submission.submissionDate = new Date();
@@ -413,6 +668,103 @@ const submitSubmission = async (req, res) => {
     });
   }
 };
+const downloadSubmissionPdf = async (
+    req,
+    res
+) => {
+
+    try {
+
+        const submission =
+            await Submission.findById(
+                req.params.id
+            ).populate(
+                "team",
+                "teamName leader members"
+            );
+
+
+        if (!submission) {
+
+            return res.status(404).json({
+                success: false,
+                message:
+                    "Submission not found"
+            });
+        }
+
+
+        const team =
+            submission.team;
+
+
+        const isMember =
+            team.members.some(
+                (member) =>
+                    member.toString() ===
+                    req.user._id.toString()
+            );
+
+
+        const isLeader =
+            team.leader.toString() ===
+            req.user._id.toString();
+
+
+        const allowed =
+            req.user.role === "admin" ||
+            req.user.role === "judge" ||
+            req.user.role === "mentor" ||
+            isMember ||
+            isLeader;
+
+
+        if (!allowed) {
+
+            return res.status(403).json({
+                success: false,
+                message:
+                    "You are not authorized to download this PDF"
+            });
+        }
+
+
+        if (
+            !submission.pdfFilePath ||
+            !fs.existsSync(
+                submission.pdfFilePath
+            )
+        ) {
+
+            return res.status(404).json({
+                success: false,
+                message:
+                    "Submission PDF not found"
+            });
+        }
+
+
+        res.download(
+            submission.pdfFilePath,
+            submission.pdfOriginalName ||
+                "submission.pdf"
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "Download Submission PDF Error:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message:
+                "Error downloading submission PDF"
+        });
+    }
+};
 
 
 module.exports = {
@@ -421,5 +773,7 @@ module.exports = {
   getSubmissionById,
   updateSubmission,
   deleteSubmission,
-  submitSubmission
+  submitSubmission,
+  getSubmissionByTeam,
+  downloadSubmissionPdf
 };

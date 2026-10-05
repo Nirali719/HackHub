@@ -111,6 +111,16 @@ const Navbar = () => {
                 >
                     Results
                 </NavLink>
+                <NavLink
+    to="/participant/certificates"
+    className={({ isActive }) =>
+        `navbar-link ${
+            isActive ? "active" : ""
+        }`
+    }
+>
+    Certificates
+</NavLink>
 
             </nav>
 
@@ -223,13 +233,22 @@ const Navbar = () => {
 
                         <div className="profile-divider"></div>
 
+<button
+    className="profile-edit"
+    onClick={() => {
+        setProfileOpen(false);
+        navigate("/profile");
+    }}
+>
+    Edit Profile
+</button>
 
-                        <button
-                            className="profile-logout"
-                            onClick={handleLogout}
-                        >
-                            Logout
-                        </button>
+<button
+    className="profile-logout"
+    onClick={handleLogout}
+>
+    Logout
+</button>
 
                     </div>
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../services/api";
+import EvaluationResults from "../components/EvaluationResults";
 
 function SubmissionDetails() {
     const { id } = useParams();
@@ -736,6 +737,58 @@ function SubmissionDetails() {
                             </strong>
 
                         </div>
+                        {submission.pdfFileName && (
+    <button
+        className="submission-primary-btn"
+        onClick={async () => {
+            try {
+                const response = await api.get(
+                    `/submissions/${submission._id}/pdf`,
+                    {
+                        responseType: "blob"
+                    }
+                );
+
+                const url = window.URL.createObjectURL(
+                    new Blob(
+                        [response.data],
+                        {
+                            type: "application/pdf"
+                        }
+                    )
+                );
+
+                const link = document.createElement("a");
+
+                link.href = url;
+
+                link.download =
+                    submission.pdfOriginalName ||
+                    "submission.pdf";
+
+                document.body.appendChild(link);
+
+                link.click();
+
+                link.remove();
+
+                window.URL.revokeObjectURL(url);
+
+            } catch (error) {
+                console.error(
+                    "PDF download error:",
+                    error
+                );
+
+                alert(
+                    "Unable to download submission PDF."
+                );
+            }
+        }}
+    >
+        Download Submission PDF
+    </button>
+)}
 
                     </div>
 
@@ -814,6 +867,9 @@ function SubmissionDetails() {
                     )}
 
                 </div>
+                <EvaluationResults
+    submissionId={submission._id}
+/>
 
             </div>
 

@@ -1,33 +1,22 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
-import { useAuth } from "../context/AuthContext";
 
-const MyTeam = () => {
+function MyTeam() {
     const navigate = useNavigate();
-    const { user } = useAuth();
+
 
     const [teams, setTeams] = useState([]);
-    const [hackathons, setHackathons] = useState([]);
-
+    const [guidance, setGuidance] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
-    const [showCreateForm, setShowCreateForm] = useState(false);
-
-    const [teamName, setTeamName] = useState("");
-    const [selectedHackathon, setSelectedHackathon] = useState("");
-
-    const [creating, setCreating] = useState(false);
-    const [deletingId, setDeletingId] = useState(null);
-
+    
     useEffect(() => {
-        fetchTeams();
-        fetchHackathons();
+        fetchMyTeams();
     }, []);
 
-    const fetchTeams = async () => {
+    const fetchMyTeams = async () => {
         try {
             setLoading(true);
             setError("");
@@ -36,534 +25,436 @@ const MyTeam = () => {
 
             const allTeams = response.data.teams || [];
 
-            const myTeams = allTeams.filter((team) => {
-                const isLeader =
-                    team.leader?._id === user?.id;
+            const currentUser = JSON.parse(
+                localStorage.getItem("user")
+            );
 
-                const isMember =
-                    team.members?.some(
-                        (member) => member._id === user?.id
-                    );
+            if (!currentUser) {
+                setError("User information not found.");
+                return;
+            }
 
-                return isLeader || isMember;
-            });
+            const myTeams = allTeams.filter((team) =>
+                team.members?.some(
+                    (member) =>
+                        member._id?.toString() ===
+                        currentUser.id?.toString()
+                )
+            );
 
             setTeams(myTeams);
-        } catch (error) {
-            console.error("Error fetching teams:", error);
+
+            // Fetch guidance for each team
+            for (const team of myTeams) {
+                try {
+                    const guidanceResponse = await api.get(
+                        `/teams/${team._id}/guidance`
+                    );
+
+                    setGuidance((previous) => ({
+                        ...previous,
+                        [team._id]:
+                            guidanceResponse.data.guidance || []
+                    }));
+                } catch (guidanceError) {
+                    console.log(
+                        `No guidance found for ${team.teamName}`
+                    );
+
+                    setGuidance((previous) => ({
+                        ...previous,
+                        [team._id]: []
+                    }));
+                }
+            }
+
+        } catch (err) {
+            console.error(err);
 
             setError(
-                error.response?.data?.message ||
-                "Unable to load your teams."
+                err.response?.data?.message ||
+                "Failed to load your teams."
             );
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchHackathons = async () => {
-        try {
-            const response = await api.get("/hackathons");
-
-            setHackathons(
-                response.data.hackathons || []
-            );
-        } catch (error) {
-            console.error(
-                "Error fetching hackathons:",
-                error
-            );
-        }
-    };
-
-    const handleCreateTeam = async (event) => {
-        event.preventDefault();
-
-        if (!teamName.trim()) {
-            setError("Please enter a team name.");
-            return;
-        }
-
-        if (!selectedHackathon) {
-            setError("Please select a hackathon.");
-            return;
-        }
-
-        try {
-            setCreating(true);
-            setError("");
-
-            await api.post("/teams", {
-                teamName: teamName.trim(),
-                hackathon: selectedHackathon
-            });
-
-            setTeamName("");
-            setSelectedHackathon("");
-            setShowCreateForm(false);
-
-            await fetchTeams();
-        } catch (error) {
-            console.error(
-                "Error creating team:",
-                error
-            );
-
-            setError(
-                error.response?.data?.message ||
-                "Unable to create team."
-            );
-        } finally {
-            setCreating(false);
-        }
-    };
-
-    const handleDeleteTeam = async (teamId) => {
-        const confirmed = window.confirm(
-            "Are you sure you want to delete this team?"
-        );
-
-        if (!confirmed) {
-            return;
-        }
-
-        try {
-            setDeletingId(teamId);
-            setError("");
-
-            await api.delete(`/teams/${teamId}`);
-
-            setTeams((previousTeams) =>
-                previousTeams.filter(
-                    (team) => team._id !== teamId
-                )
-            );
-        } catch (error) {
-            console.error(
-                "Error deleting team:",
-                error
-            );
-
-            setError(
-                error.response?.data?.message ||
-                "Unable to delete team."
-            );
-        } finally {
-            setDeletingId(null);
-        }
-    };
-
-    const getStatusClass = (status) => {
-        switch (status) {
-            case "ready":
-                return "team-status ready";
-
-            case "submitted":
-                return "team-status submitted";
-
-            case "forming":
-            default:
-                return "team-status forming";
-        }
-    };
-
-    const getStatusText = (status) => {
-        if (!status) {
-            return "Forming";
-        }
-
-        return (
-            status.charAt(0).toUpperCase() +
-            status.slice(1)
-        );
-    };
-
-    const isTeamLeader = (team) => {
-        return (
-            team.leader?._id === user?.id
-        );
-    };
-
     if (loading) {
         return (
-            <div className="team-page">
-                <div className="team-container">
-                    <div className="team-loading">
-                        Loading your teams...
+            <div className="my-team-page">
+                <div className="loading-card">
+                    <div className="loading-spinner"></div>
+                    <p>Loading your team...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="my-team-page">
+                <div className="error-card">
+                    <h2>Unable to load team</h2>
+                    <p>{error}</p>
+
+                    <button
+                        onClick={fetchMyTeams}
+                        className="primary-button"
+                    >
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (teams.length === 0) {
+        return (
+            <div className="my-team-page">
+                <div className="page-header">
+                    <div>
+                        <p className="page-label">
+                            TEAM MANAGEMENT
+                        </p>
+
+                        <h1>My Team</h1>
+
+                        <p>
+                            View your team, mentor and guidance.
+                        </p>
                     </div>
+                </div>
+
+                <div className="empty-card">
+                    <div className="empty-icon">👥</div>
+
+                    <h2>No Team Yet</h2>
+
+                    <p>
+                        You are not currently a member of any team.
+                    </p>
+
+                    <button
+                        onClick={() =>
+                            navigate("/participant/hackathons")
+                        }
+                        className="primary-button"
+                    >
+                        Explore Hackathons
+                    </button>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="team-page">
-            <div className="team-container">
+        <div className="my-team-page">
 
-                <div className="team-page-header">
-                    <div>
-                        <h1>My Team</h1>
-                        <p>
-                            Create and manage your
-                            hackathon teams.
-                        </p>
-                    </div>
+            {/* PAGE HEADER */}
+            <div className="page-header">
+                <div>
+                    <p className="page-label">
+                        TEAM MANAGEMENT
+                    </p>
 
-                    <button
-                        className="create-team-button"
-                        onClick={() =>
-                            setShowCreateForm(
-                                !showCreateForm
-                            )
-                        }
-                    >
-                        {showCreateForm
-                            ? "Close"
-                            : "+ Create Team"}
-                    </button>
+                    <h1>My Team</h1>
+
+                    <p>
+                        View your team members, assigned mentor
+                        and mentor guidance.
+                    </p>
                 </div>
 
-                {error && (
-                    <div className="error-box">
-                        {error}
-                    </div>
-                )}
+                <button
+                    className="secondary-button"
+                    onClick={fetchMyTeams}
+                >
+                    Refresh
+                </button>
+            </div>
 
-                {showCreateForm && (
-                    <div className="create-team-card">
-                        <div className="create-team-header">
-                            <h2>Create New Team</h2>
-                            <p>
-                                Create a team for one of
-                                the available hackathons.
-                            </p>
-                        </div>
+            {/* TEAM CARDS */}
+            <div className="team-list">
 
-                        <form
-                            onSubmit={handleCreateTeam}
-                            className="create-team-form"
+                {teams.map((team) => {
+                    const teamGuidance =
+                        guidance[team._id] || [];
+
+                    return (
+                        <div
+                            className="team-container"
+                            key={team._id}
                         >
-                            <div className="form-group">
-                                <label>
-                                    Team Name
-                                </label>
 
-                                <input
-                                    type="text"
-                                    value={teamName}
-                                    onChange={(event) =>
-                                        setTeamName(
-                                            event.target.value
-                                        )
-                                    }
-                                    placeholder="Enter team name"
-                                />
+                            {/* TEAM HEADER */}
+                            <div className="team-header">
+
+                                <div>
+                                    <span className="team-label">
+                                        YOUR TEAM
+                                    </span>
+
+                                    <h2>{team.teamName}</h2>
+
+                                    <p>
+                                        {team.hackathon?.title ||
+                                            "Hackathon"}
+                                    </p>
+                                </div>
+
+                                <span
+                                    className={`status-badge ${
+                                        team.status || "forming"
+                                    }`}
+                                >
+                                    {team.status || "forming"}
+                                </span>
                             </div>
 
-                            <div className="form-group">
-                                <label>
-                                    Hackathon
-                                </label>
+                            {/* TEAM CONTENT */}
+                            <div className="team-grid">
 
-                                <select
-                                    value={
-                                        selectedHackathon
-                                    }
-                                    onChange={(event) =>
-                                        setSelectedHackathon(
-                                            event.target.value
-                                        )
-                                    }
-                                >
-                                    <option value="">
-                                        Select a hackathon
-                                    </option>
+                                {/* TEAM INFORMATION */}
+                                <div className="info-card">
 
-                                    {hackathons.map(
-                                        (hackathon) => (
-                                            <option
-                                                key={
-                                                    hackathon._id
-                                                }
-                                                value={
-                                                    hackathon._id
-                                                }
-                                            >
-                                                {
-                                                    hackathon.title
-                                                }
-                                            </option>
-                                        )
-                                    )}
-                                </select>
-                            </div>
+                                    <div className="card-title">
+                                        <span>👥</span>
+                                        <h3>Team Members</h3>
+                                    </div>
 
-                            <div className="create-team-actions">
-                                <button
-                                    type="button"
-                                    className="team-secondary-button"
-                                    onClick={() => {
-                                        setShowCreateForm(
-                                            false
-                                        );
-                                        setTeamName("");
-                                        setSelectedHackathon(
-                                            ""
-                                        );
-                                    }}
-                                >
-                                    Cancel
-                                </button>
+                                    <div className="member-count">
+                                        {team.members?.length || 0} members
+                                    </div>
 
-                                <button
-                                    type="submit"
-                                    className="team-primary-button"
-                                    disabled={creating}
-                                >
-                                    {creating
-                                        ? "Creating..."
-                                        : "Create Team"}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                )}
+                                    <div className="members-list">
 
-                <div className="team-summary">
-                    <div className="team-summary-card">
-                        <span>My Teams</span>
-                        <strong>
-                            {teams.length}
-                        </strong>
-                    </div>
+                                        {team.members?.map(
+                                            (member) => (
+                                                <div
+                                                    className="member-row"
+                                                    key={member._id}
+                                                >
 
-                    <div className="team-summary-card">
-                        <span>Teams I Lead</span>
-                        <strong>
-                            {
-                                teams.filter(
-                                    (team) =>
-                                        isTeamLeader(
-                                            team
-                                        )
-                                ).length
-                            }
-                        </strong>
-                    </div>
-                </div>
+                                                    <div className="avatar">
+                                                        {member.name
+                                                            ?.charAt(0)
+                                                            ?.toUpperCase()}
+                                                    </div>
 
-                <div className="teams-section">
-                    <div className="teams-section-header">
-                        <div>
-                            <h2>Your Teams</h2>
-                            <p>
-                                Teams you are currently
-                                participating in.
-                            </p>
-                        </div>
-                    </div>
+                                                    <div className="member-info">
+                                                        <strong>
+                                                            {member.name}
+                                                        </strong>
 
-                    {teams.length === 0 ? (
-                        <div className="no-teams">
-                            <div className="team-empty-icon">
-                                T
-                            </div>
+                                                        <span>
+                                                            {member.email}
+                                                        </span>
+                                                    </div>
 
-                            <h3>
-                                You don't have a team yet
-                            </h3>
+                                                    {team.leader?._id ===
+                                                        member._id && (
+                                                        <span className="leader-badge">
+                                                            Leader
+                                                        </span>
+                                                    )}
 
-                            <p>
-                                Create a team and start
-                                collaborating with other
-                                participants.
-                            </p>
+                                                </div>
+                                            )
+                                        )}
 
-                            <button
-                                onClick={() =>
-                                    setShowCreateForm(
-                                        true
-                                    )
-                                }
-                            >
-                                Create Your Team
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="team-list">
-                            {teams.map((team) => (
-                                <div
-                                    className="team-card"
-                                    key={team._id}
-                                >
-                                    <div className="team-card-header">
-                                        <div>
+                                    </div>
+
+                                    <button
+                                        className="outline-button"
+                                        onClick={() =>
+                                            navigate(
+                                                `/participant/team/${team._id}`
+                                            )
+                                        }
+                                    >
+                                        Manage Team →
+                                    </button>
+
+                                </div>
+
+                                {/* MENTOR */}
+                                <div className="info-card mentor-card">
+
+                                    <div className="card-title">
+                                        <span>🎓</span>
+                                        <h3>Assigned Mentor</h3>
+                                    </div>
+
+                                    {team.mentor ? (
+                                        <div className="mentor-content">
+
+                                            <div className="mentor-avatar">
+                                                {team.mentor.name
+                                                    ?.charAt(0)
+                                                    ?.toUpperCase()}
+                                            </div>
+
+                                            <div>
+                                                <h3>
+                                                    {team.mentor.name}
+                                                </h3>
+
+                                                <p>
+                                                    {team.mentor.email}
+                                                </p>
+
+                                                <span className="mentor-status">
+                                                    Mentor assigned
+                                                </span>
+                                            </div>
+
+                                        </div>
+                                    ) : (
+                                        <div className="no-mentor">
+                                            <div className="no-mentor-icon">
+                                                🎓
+                                            </div>
+
                                             <h3>
-                                                {
-                                                    team.teamName
-                                                }
+                                                Mentor not assigned
                                             </h3>
 
                                             <p>
-                                                {
-                                                    team
-                                                        .hackathon
-                                                        ?.title
-                                                }
+                                                A mentor has not been
+                                                assigned to your team yet.
+                                            </p>
+                                        </div>
+                                    )}
+
+                                </div>
+
+                            </div>
+
+                            {/* GUIDANCE SECTION */}
+                            <div className="guidance-section">
+
+                                <div className="section-heading">
+
+                                    <div>
+                                        <span className="team-label">
+                                            MENTOR SUPPORT
+                                        </span>
+
+                                        <h2>Mentor Guidance</h2>
+
+                                        <p>
+                                            Suggestions and feedback
+                                            provided by your assigned
+                                            mentor.
+                                        </p>
+                                    </div>
+
+                                    <div className="guidance-count">
+                                        {teamGuidance.length}
+                                        {" "}
+                                        {teamGuidance.length === 1
+                                            ? "message"
+                                            : "messages"}
+                                    </div>
+
+                                </div>
+
+                                {teamGuidance.length === 0 ? (
+                                    <div className="no-guidance">
+
+                                        <div className="guidance-icon">
+                                            💬
+                                        </div>
+
+                                        <div>
+                                            <h3>
+                                                No guidance yet
+                                            </h3>
+
+                                            <p>
+                                                Your mentor has not
+                                                provided any guidance
+                                                yet. New feedback will
+                                                appear here.
                                             </p>
                                         </div>
 
-                                        <span
-                                            className={getStatusClass(
-                                                team.status
-                                            )}
-                                        >
-                                            {getStatusText(
-                                                team.status
-                                            )}
-                                        </span>
                                     </div>
+                                ) : (
+                                    <div className="guidance-list">
 
-                                    <div className="team-info">
-                                        <div>
-                                            <span>
-                                                Hackathon
-                                            </span>
+                                        {teamGuidance
+                                            .slice()
+                                            .reverse()
+                                            .map((item) => (
+                                                <div
+                                                    className="guidance-card"
+                                                    key={item._id}
+                                                >
 
-                                            <strong>
-                                                {
-                                                    team
-                                                        .hackathon
-                                                        ?.title ||
-                                                    "Not available"
-                                                }
-                                            </strong>
-                                        </div>
+                                                    <div className="guidance-top">
 
-                                        <div>
-                                            <span>
-                                                Leader
-                                            </span>
+                                                        <div className="guidance-mentor">
 
-                                            <strong>
-                                                {
-                                                    team
-                                                        .leader
-                                                        ?.name ||
-                                                    "Not available"
-                                                }
-                                            </strong>
-                                        </div>
+                                                            <div className="guidance-avatar">
+                                                                {item.mentor?.name
+                                                                    ?.charAt(0)
+                                                                    ?.toUpperCase()}
+                                                            </div>
 
-                                        <div>
-                                            <span>
-                                                Members
-                                            </span>
+                                                            <div>
+                                                                <strong>
+                                                                    {item
+                                                                        .mentor
+                                                                        ?.name ||
+                                                                        "Mentor"}
+                                                                </strong>
 
-                                            <strong>
-                                                {
-                                                    team
-                                                        .members
-                                                        ?.length ||
-                                                    0
-                                                }
-                                            </strong>
-                                        </div>
-                                    </div>
+                                                                <span>
+                                                                    Mentor
+                                                                </span>
+                                                            </div>
 
-                                    <div className="team-members">
-                                        <h4>
-                                            Team Members
-                                        </h4>
+                                                        </div>
 
-                                        <div className="member-list">
-                                            {team.members?.map(
-                                                (member) => (
-                                                    <div
-                                                        className="member-item"
-                                                        key={
-                                                            member._id
-                                                        }
-                                                    >
-                                                        <div className="member-avatar">
-                                                            {member.name
-                                                                ?.charAt(
-                                                                    0
+                                                        <span className="guidance-date">
+                                                            {item.createdAt
+                                                                ? new Date(
+                                                                    item.createdAt
+                                                                ).toLocaleDateString(
+                                                                    "en-IN",
+                                                                    {
+                                                                        day: "2-digit",
+                                                                        month: "short",
+                                                                        year: "numeric"
+                                                                    }
                                                                 )
-                                                                .toUpperCase()}
-                                                        </div>
+                                                                : ""}
+                                                        </span>
 
-                                                        <div className="member-info">
-                                                            <strong>
-                                                                {
-                                                                    member.name
-                                                                }
-
-                                                                {member._id ===
-                                                                    team
-                                                                        .leader
-                                                                        ?._id && (
-                                                                    <span className="leader-badge">
-                                                                        Leader
-                                                                    </span>
-                                                                )}
-                                                            </strong>
-
-                                                            <span>
-                                                                {
-                                                                    member.email
-                                                                }
-                                                            </span>
-                                                        </div>
                                                     </div>
-                                                )
-                                            )}
-                                        </div>
-                                    </div>
 
-                                    <div className="team-card-actions">
-                                        <button
-                                            className="team-view-button"
-                                            onClick={() =>
-                                                navigate(
-                                                    `/participant/team/${team._id}`
-                                                )
-                                            }
-                                        >
-                                            Manage Team
-                                        </button>
+                                                    <div className="guidance-message">
+                                                        {item.message}
+                                                    </div>
 
-                                        {isTeamLeader(
-                                            team
-                                        ) && (
-                                            <button
-                                                className="team-delete-button"
-                                                onClick={() =>
-                                                    handleDeleteTeam(
-                                                        team._id
-                                                    )
-                                                }
-                                                disabled={
-                                                    deletingId ===
-                                                    team._id
-                                                }
-                                            >
-                                                {deletingId ===
-                                                team._id
-                                                    ? "Deleting..."
-                                                    : "Delete Team"}
-                                            </button>
-                                        )}
+                                                </div>
+                                            ))}
+
                                     </div>
-                                </div>
-                            ))}
+                                )}
+
+                            </div>
+
                         </div>
-                    )}
-                </div>
+                    );
+                })}
+
             </div>
+
         </div>
     );
-};
+}
 
 export default MyTeam;
-

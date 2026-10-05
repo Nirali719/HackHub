@@ -1,6 +1,10 @@
 const Registration = require("../models/Registration");
 const Hackathon = require("../models/Hackathon");
-
+const {
+    sendRegistrationConfirmation
+} = require(
+    "../services/emailService"
+);
 
 // ==========================================
 // CREATE REGISTRATION
@@ -47,7 +51,20 @@ const createRegistration = async (req, res) => {
       participant: req.user._id,
       hackathon: hackathon
     });
+const registeredUser =
+    await require(
+        "../models/User"
+    ).findById(
+        req.user._id
+    ).select(
+        "name email"
+    );
 
+
+await sendRegistrationConfirmation({
+    user: registeredUser,
+    hackathon: hackathonData
+});
     res.status(201).json({
       success: true,
       message: "Registration created successfully",

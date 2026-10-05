@@ -10,7 +10,9 @@ const {
   getEvaluations,
   getEvaluationById,
   updateEvaluation,
-  deleteEvaluation
+  deleteEvaluation,
+  getEvaluationsBySubmission
+  
 } = require("../controllers/evaluationController");
 
 
@@ -40,6 +42,20 @@ router.get(
   getEvaluations
 );
 
+// ==========================================
+// GET EVALUATIONS BY SUBMISSION
+// PARTICIPANT → THEIR TEAM
+// MENTOR → ASSIGNED TEAM
+// JUDGE → ANY
+// ADMIN → ANY
+// ==========================================
+
+router.get(
+    "/submission/:submissionId",
+    protect,
+    authorize("participant", "mentor", "judge", "admin"),
+    getEvaluationsBySubmission
+);
 
 // ==========================================
 // GET SINGLE EVALUATION

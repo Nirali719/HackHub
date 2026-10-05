@@ -205,10 +205,36 @@ const updateMyProfile = async (req, res) => {
     }
 
     // Update only allowed fields
-    user.name = req.body.name || user.name;
-    user.email = req.body.email || user.email;
-    user.college = req.body.college || user.college;
-    user.phone = req.body.phone || user.phone;
+    // Update only allowed fields
+if (req.body.name !== undefined) {
+  user.name = req.body.name.trim();
+}
+
+if (req.body.email !== undefined) {
+  const newEmail = req.body.email.trim().toLowerCase();
+
+  const existingEmailUser = await User.findOne({
+    email: newEmail,
+    _id: { $ne: user._id }
+  });
+
+  if (existingEmailUser) {
+    return res.status(400).json({
+      success: false,
+      message: "Email is already registered with another account"
+    });
+  }
+
+  user.email = newEmail;
+}
+
+if (req.body.college !== undefined) {
+  user.college = req.body.college.trim();
+}
+
+if (req.body.phone !== undefined) {
+  user.phone = req.body.phone.trim();
+}
 
     await user.save();
 

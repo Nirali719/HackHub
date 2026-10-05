@@ -1,8 +1,12 @@
 const Team = require("../models/Team");
 const Hackathon = require("../models/Hackathon");
 const User = require("../models/User");
-
-
+const Registration = require("../models/Registration");
+const {
+    sendTeamInvitation
+} = require(
+    "../services/emailService"
+);
 // ==========================================
 // CREATE TEAM
 // POST /api/teams
@@ -29,6 +33,19 @@ const createTeam = async (req, res) => {
         message: "Hackathon not found"
       });
     }
+    // Check participant is registered for this hackathon
+const registration = await Registration.findOne({
+    participant: req.user._id,
+    hackathon: hackathon,
+    status: { $ne: "cancelled" }
+});
+
+if (!registration) {
+    return res.status(403).json({
+        success: false,
+        message: "You must register for this hackathon before creating a team"
+    });
+}
 
     // Check if participant already has a team
     const existingTeam = await Team.findOne({
@@ -98,17 +115,21 @@ const getTeams = async (req, res) => {
 
 // ==========================================
 // GET SINGLE TEAM
-// GET /api/teams/:id
-// PARTICIPANT AND ADMIN
+// GET /teams/:id
+// PARTICIPANT, MENTOR AND ADMIN
 // ==========================================
 
 const getTeamById = async (req, res) => {
   try {
+
     const team = await Team.findById(req.params.id)
       .populate("hackathon", "title status")
       .populate("leader", "name email")
-      .populate("members", "name email");
+      .populate("members", "name email")
+      .populate("mentor", "name email");
 
+
+    // Team not found
     if (!team) {
       return res.status(404).json({
         success: false,
@@ -116,17 +137,54 @@ const getTeamById = async (req, res) => {
       });
     }
 
+
+    // ==========================================
+    // MENTOR ACCESS CHECK
+    // ==========================================
+
+    if (req.user.role === "mentor") {
+
+      // No mentor assigned to this team
+      if (!team.mentor) {
+        return res.status(403).json({
+          success: false,
+          message: "This team has no mentor assigned"
+        });
+      }
+
+
+      // Make sure logged-in mentor is the assigned mentor
+      if (
+        team.mentor._id.toString() !==
+        req.user._id.toString()
+      ) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not assigned to this team"
+        });
+      }
+
+    }
+
+
+    // ==========================================
+    // SEND TEAM DATA
+    // ==========================================
+
     res.status(200).json({
       success: true,
       team
     });
 
+
   } catch (error) {
+
     res.status(500).json({
       success: false,
       message: "Error fetching team",
       error: error.message
     });
+
   }
 };
 
@@ -298,6 +356,19 @@ const addTeamMember = async (req, res) => {
     team.members.push(userId);
 
     await team.save();
+    await sendTeamInvitation({
+
+    user,
+
+    team,
+
+    hackathon:
+        await Hackathon.findById(
+            team.hackathon
+        ).select(
+            "title"
+        )
+});
 
     res.status(200).json({
       success: true,
@@ -387,7 +458,106 @@ const removeTeamMember = async (req, res) => {
   }
 };
 
+// ==========================================
+// ASSIGN MENTOR TO TEAM
+// PUT /teams/:id/mentor
+// ADMIN ONLY
+// ==========================================
 
+const assignMentor = async (req, res) => {
+  try {
+    const { mentorId } = req.body;
+
+    if (!mentorId) {
+      return res.status(400).json({
+        success: false,
+        message: "Mentor ID is required"
+      });
+    }
+
+    const team = await Team.findById(req.params.id);
+
+    if (!team) {
+      return res.status(404).json({
+        success: false,
+        message: "Team not found"
+      });
+    }
+
+    // Check mentor exists
+    const mentor = await User.findById(mentorId);
+
+    if (!mentor) {
+      return res.status(404).json({
+        success: false,
+        message: "Mentor not found"
+      });
+    }
+
+    // Only users with mentor role can be assigned
+    if (mentor.role !== "mentor") {
+      return res.status(400).json({
+        success: false,
+        message: "Selected user is not a mentor"
+      });
+    }
+
+    team.mentor = mentorId;
+
+    await team.save();
+
+    const updatedTeam = await Team.findById(team._id)
+      .populate("hackathon", "title status")
+      .populate("leader", "name email")
+      .populate("members", "name email")
+      .populate("mentor", "name email");
+
+    res.status(200).json({
+      success: true,
+      message: "Mentor assigned successfully",
+      team: updatedTeam
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error assigning mentor",
+      error: error.message
+    });
+  }
+};
+
+
+// ==========================================
+// GET TEAMS ASSIGNED TO LOGGED-IN MENTOR
+// GET /teams/mentor/my-teams
+// MENTOR ONLY
+// ==========================================
+
+const getMentorTeams = async (req, res) => {
+  try {
+    const teams = await Team.find({
+      mentor: req.user._id
+    })
+      .populate("hackathon", "title status")
+      .populate("leader", "name email")
+      .populate("members", "name email")
+      .populate("mentor", "name email");
+
+    res.status(200).json({
+      success: true,
+      count: teams.length,
+      teams
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error fetching mentor teams",
+      error: error.message
+    });
+  }
+};
 module.exports = {
   createTeam,
   getTeams,
@@ -395,5 +565,7 @@ module.exports = {
   updateTeam,
   deleteTeam,
   addTeamMember,
-  removeTeamMember
+  removeTeamMember,
+  assignMentor,
+  getMentorTeams
 };

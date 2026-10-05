@@ -2,98 +2,158 @@ const express = require("express");
 
 const router = express.Router();
 
-const protect = require("../middleware/authMiddleware");
-const authorize = require("../middleware/roleMiddleware");
+const protect =
+    require("../middleware/authMiddleware");
+
+const authorize =
+    require("../middleware/roleMiddleware");
 
 const {
-  createSubmission,
-  getSubmissions,
-  getSubmissionById,
-  updateSubmission,
-  deleteSubmission,
-  submitSubmission
-} = require("../controllers/submissionController");
+    uploadSubmissionPdf
+} = require(
+    "../middleware/uploadMiddleware"
+);
+
+const {
+    createSubmission,
+    getSubmissions,
+    getSubmissionById,
+    getSubmissionByTeam,
+    updateSubmission,
+    deleteSubmission,
+    submitSubmission,
+    downloadSubmissionPdf
+} = require(
+    "../controllers/submissionController"
+);
 
 
 // ==========================================
-// CREATE SUBMISSION
-// PARTICIPANT
-// Controller checks Team Leader
+// CREATE
 // ==========================================
 
 router.post(
-  "/",
-  protect,
-  authorize("participant"),
-  createSubmission
+    "/",
+    protect,
+    authorize("participant"),
+    uploadSubmissionPdf.single(
+        "submissionPdf"
+    ),
+    createSubmission
 );
 
 
 // ==========================================
-// GET ALL SUBMISSIONS
-// ALL PROJECT ROLES
+// GET ALL
 // ==========================================
 
 router.get(
-  "/",
-  protect,
-  authorize("participant", "mentor", "judge", "admin"),
-  getSubmissions
+    "/",
+    protect,
+    authorize(
+        "participant",
+        "mentor",
+        "judge",
+        "admin"
+    ),
+    getSubmissions
 );
 
 
 // ==========================================
-// GET SINGLE SUBMISSION
-// ALL PROJECT ROLES
+// GET BY TEAM
+// IMPORTANT: BEFORE /:id
 // ==========================================
 
 router.get(
-  "/:id",
-  protect,
-  authorize("participant", "mentor", "judge", "admin"),
-  getSubmissionById
+    "/team/:teamId",
+    protect,
+    authorize(
+        "participant",
+        "mentor",
+        "judge",
+        "admin"
+    ),
+    getSubmissionByTeam
 );
 
 
 // ==========================================
-// UPDATE SUBMISSION
-// PARTICIPANT OR ADMIN
-// Controller checks Team Leader
+// DOWNLOAD PDF
+// ==========================================
+
+router.get(
+    "/:id/pdf",
+    protect,
+    authorize(
+        "participant",
+        "mentor",
+        "judge",
+        "admin"
+    ),
+    downloadSubmissionPdf
+);
+
+
+// ==========================================
+// GET SINGLE
+// ==========================================
+
+router.get(
+    "/:id",
+    protect,
+    authorize(
+        "participant",
+        "mentor",
+        "judge",
+        "admin"
+    ),
+    getSubmissionById
+);
+
+
+// ==========================================
+// UPDATE
 // ==========================================
 
 router.put(
-  "/:id",
-  protect,
-  authorize("participant", "admin"),
-  updateSubmission
+    "/:id",
+    protect,
+    authorize(
+        "participant",
+        "admin"
+    ),
+    uploadSubmissionPdf.single(
+        "submissionPdf"
+    ),
+    updateSubmission
 );
 
 
 // ==========================================
-// DELETE SUBMISSION
-// PARTICIPANT OR ADMIN
-// Controller checks Team Leader
+// DELETE
 // ==========================================
 
 router.delete(
-  "/:id",
-  protect,
-  authorize("participant", "admin"),
-  deleteSubmission
+    "/:id",
+    protect,
+    authorize(
+        "participant",
+        "admin"
+    ),
+    deleteSubmission
 );
 
 
 // ==========================================
-// SUBMIT PROJECT
-// PARTICIPANT ONLY
-// Controller checks Team Leader
+// FINAL SUBMIT
 // ==========================================
 
 router.patch(
-  "/:id/submit",
-  protect,
-  authorize("participant"),
-  submitSubmission
+    "/:id/submit",
+    protect,
+    authorize("participant"),
+    submitSubmission
 );
 
 

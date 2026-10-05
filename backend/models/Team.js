@@ -27,13 +27,19 @@ const teamSchema = new mongoose.Schema(
       }
     ],
 
+    // Mentor assigned to this team
+    mentor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
+
     status: {
       type: String,
-      enum: ["forming", "ready", "submitted"],
+      enum: ["forming", "ready", "submitted","completed"],
       default: "forming"
     }
-  },
- 
+  }
 );
 
 const Team = mongoose.model("Team", teamSchema);

@@ -1,41 +1,73 @@
 const mongoose = require("mongoose");
 
-const resultSchema = new mongoose.Schema(
-  {
-    hackathon: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Hackathon",
-      required: true
-    },
+const resultSchema =
+    new mongoose.Schema(
+        {
+            hackathon: {
+                type:
+                    mongoose.Schema.Types.ObjectId,
+                ref: "Hackathon",
+                required: true
+            },
 
-    teamId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Team",
-      required: true
-    },
+            teamId: {
+                type:
+                    mongoose.Schema.Types.ObjectId,
+                ref: "Team",
+                required: true
+            },
 
-    submission: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Submission",
-      required: true
-    },
+            submission: {
+                type:
+                    mongoose.Schema.Types.ObjectId,
+                ref: "Submission",
+                required: true
+            },
 
-    finalScore: {
-      type: Number,
-      required: true,
-      min: 0,
-      max: 100
-    },
+            finalScore: {
+                type: Number,
+                required: true,
+                min: 0,
+                max: 100
+            },
 
-    
-    resultStatus: {
-      type: String,
-      enum: ["winner", "runner_up", "finalist", "participant"],
-      default: "participant"
-    },
+            resultStatus: {
+                type: String,
+                enum: [
+                    "winner",
+                    "runner_up",
+                    "finalist",
+                    "participant"
+                ],
+                default: "participant"
+            },
 
-   
-  }
-);
-const Result = mongoose.model("Result", resultSchema);
+            // ======================================
+            // RESULT PUBLICATION
+            // ======================================
+
+            published: {
+                type: Boolean,
+                default: false
+            },
+
+            publishedAt: {
+                type: Date,
+                default: null
+            }
+        },
+
+        {
+            timestamps: true
+        }
+    );
+
+
+const Result =
+    mongoose.model(
+        "Result",
+        resultSchema
+    );
+
+
 module.exports = Result;

@@ -24,6 +24,11 @@ const hackathonSchema = new mongoose.Schema(
     eligibility: {
       type: String
     },
+    rules: {
+  type: String,
+  trim: true,
+  default: ""
+},
 
     registrationDeadline: {
       type: Date,

@@ -4,17 +4,26 @@ import api from "../services/api";
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
+
     const [user, setUser] = useState(() => {
         const savedUser = localStorage.getItem("user");
-        return savedUser ? JSON.parse(savedUser) : null;
+
+        return savedUser
+            ? JSON.parse(savedUser)
+            : null;
     });
 
     const [token, setToken] = useState(() => {
         return localStorage.getItem("token");
     });
 
+
+    // ==========================================
     // LOGIN
+    // ==========================================
+
     const login = async (email, password) => {
+
         const response = await api.post("/users/login", {
             email,
             password
@@ -22,19 +31,40 @@ export const AuthProvider = ({ children }) => {
 
         const { token, user } = response.data;
 
-        // Save in React state
         setToken(token);
         setUser(user);
 
-        // Save in browser
         localStorage.setItem("token", token);
-        localStorage.setItem("user", JSON.stringify(user));
+        localStorage.setItem(
+            "user",
+            JSON.stringify(user)
+        );
 
         return response.data;
     };
 
+
+    // ==========================================
+    // UPDATE USER
+    // ==========================================
+
+    const updateUser = (updatedUser) => {
+
+        setUser(updatedUser);
+
+        localStorage.setItem(
+            "user",
+            JSON.stringify(updatedUser)
+        );
+    };
+
+
+    // ==========================================
     // LOGOUT
+    // ==========================================
+
     const logout = () => {
+
         setToken(null);
         setUser(null);
 
@@ -42,7 +72,9 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem("user");
     };
 
+
     const isLoggedIn = !!token;
+
 
     return (
         <AuthContext.Provider
@@ -51,7 +83,8 @@ export const AuthProvider = ({ children }) => {
                 token,
                 isLoggedIn,
                 login,
-                logout
+                logout,
+                updateUser
             }}
         >
             {children}
@@ -59,7 +92,11 @@ export const AuthProvider = ({ children }) => {
     );
 };
 
-// Custom hook
+
+// ==========================================
+// CUSTOM HOOK
+// ==========================================
+
 export const useAuth = () => {
     return useContext(AuthContext);
 };

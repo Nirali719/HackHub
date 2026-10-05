@@ -13,6 +13,7 @@ const {
   updateResult,
   deleteResult,
   generateResults,
+  publishResults
 } = require("../controllers/resultController");
 
 
@@ -41,7 +42,12 @@ router.post(
   authorize("admin"),
   generateResults
 );
-
+router.post(
+    "/publish/:hackathonId",
+    protect,
+    authorize("admin"),
+    publishResults
+);
 
 // GET RESULTS BY HACKATHON
 router.get(

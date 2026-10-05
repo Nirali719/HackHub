@@ -33,6 +33,53 @@ function SubmissionForm() {
     const [error, setError] = useState("");
     const [message, setMessage] = useState("");
 
+    const [submissionPdf, setSubmissionPdf] =
+    useState(null);
+
+    const handlePdfChange = (event) => {
+
+    const file =
+        event.target.files[0];
+
+    if (!file) {
+        setSubmissionPdf(null);
+        return;
+    }
+
+    if (
+        file.type !==
+        "application/pdf"
+    ) {
+
+        setError(
+            "Only PDF files are allowed."
+        );
+
+        event.target.value = "";
+
+        return;
+    }
+
+
+    const maxSize =
+        5 * 1024 * 1024;
+
+    if (file.size > maxSize) {
+
+        setError(
+            "PDF size must not exceed 5 MB."
+        );
+
+        event.target.value = "";
+
+        return;
+    }
+
+
+    setError("");
+
+    setSubmissionPdf(file);
+};
     // ==========================================
     // LOAD DATA
     // ==========================================
@@ -210,20 +257,81 @@ function SubmissionForm() {
 
     const createSubmission = async () => {
 
-        const response = await api.post(
-            "/submissions",
-            {
-                hackathon: formData.hackathon,
-                team: formData.team,
-                projectTitle: formData.projectTitle,
-                description: formData.description,
-                githubUrl: formData.githubUrl,
-                demoUrl: formData.demoUrl
-            }
-        );
+    const data = new FormData();
 
-        return response.data;
-    };
+    data.append(
+        "hackathon",
+        formData.hackathon
+    );
+
+    data.append(
+        "team",
+        formData.team
+    );
+
+    data.append(
+        "projectTitle",
+        formData.projectTitle
+    );
+
+    data.append(
+        "description",
+        formData.description
+    );
+
+    data.append(
+        "githubUrl",
+        formData.githubUrl
+    );
+
+    data.append(
+        "demoUrl",
+        formData.demoUrl
+    );
+
+    // IMPORTANT: attach the actual PDF file
+    if (submissionPdf) {
+        data.append(
+            "submissionPdf",
+            submissionPdf,
+            submissionPdf.name
+        );
+    }
+
+    // Get JWT token
+    const token =
+        localStorage.getItem("token");
+
+    // IMPORTANT:
+    // Do NOT set Content-Type manually.
+    // Browser will automatically set:
+    // multipart/form-data; boundary=...
+    const response = await fetch(
+        "http://localhost:5000/submissions",
+        {
+            method: "POST",
+
+            headers: {
+                Authorization:
+                    `Bearer ${token}`
+            },
+
+            body: data
+        }
+    );
+
+    const result =
+        await response.json();
+
+    if (!response.ok) {
+        throw new Error(
+            result.message ||
+            "Unable to create submission"
+        );
+    }
+
+    return result;
+};
 
     // ==========================================
     // UPDATE SUBMISSION
@@ -231,18 +339,66 @@ function SubmissionForm() {
 
     const updateSubmission = async () => {
 
-        const response = await api.put(
-            `/submissions/${id}`,
-            {
-                projectTitle: formData.projectTitle,
-                description: formData.description,
-                githubUrl: formData.githubUrl,
-                demoUrl: formData.demoUrl
-            }
-        );
+    const data = new FormData();
 
-        return response.data;
-    };
+    data.append(
+        "projectTitle",
+        formData.projectTitle
+    );
+
+    data.append(
+        "description",
+        formData.description
+    );
+
+    data.append(
+        "githubUrl",
+        formData.githubUrl
+    );
+
+    data.append(
+        "demoUrl",
+        formData.demoUrl
+    );
+
+    // Attach PDF only if a new PDF was selected
+    if (submissionPdf) {
+        data.append(
+            "submissionPdf",
+            submissionPdf,
+            submissionPdf.name
+        );
+    }
+
+    const token =
+        localStorage.getItem("token");
+
+    const response = await fetch(
+        `http://localhost:5000/submissions/${id}`,
+        {
+            method: "PUT",
+
+            headers: {
+                Authorization:
+                    `Bearer ${token}`
+            },
+
+            body: data
+        }
+    );
+
+    const result =
+        await response.json();
+
+    if (!response.ok) {
+        throw new Error(
+            result.message ||
+            "Unable to update submission"
+        );
+    }
+
+    return result;
+};
 
     // ==========================================
     // HANDLE SUBMIT FORM
@@ -604,6 +760,39 @@ function SubmissionForm() {
 
                 </div>
 
+                <div className="submission-form-group">
+
+    <label>
+        Project Submission PDF
+        <span className="optional-label">
+            {isEditMode
+                ? "Optional"
+                : "Required"}
+        </span>
+    </label>
+
+    <input
+        type="file"
+        accept="application/pdf,.pdf"
+        onChange={handlePdfChange}
+        required={!isEditMode}
+    />
+
+    <small className="submission-help">
+        Upload your project report/submission
+        as a PDF. Maximum size: 5 MB.
+    </small>
+
+    {submissionPdf && (
+        <small>
+            Selected file:
+            {" "}
+            {submissionPdf.name}
+        </small>
+    )}
+
+</div>
+
                 {/* DEMO */}
 
                 <div className="submission-form-group">
@@ -663,6 +852,7 @@ function SubmissionForm() {
 
         </div>
     );
+    
 }
 
 export default SubmissionForm;
