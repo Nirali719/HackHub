@@ -553,7 +553,7 @@ const createCertificatePDF =
                         "Helvetica-Bold"
                     )
                     .text(
-                        "HACKFORGE",
+                        "HACkathon Management Portal",
                         {
                             align:
                                 "center"
@@ -668,7 +668,7 @@ const createCertificatePDF =
                 doc
                     .fontSize(12)
                     .text(
-                        `Issued by HackForge`,
+                        `Issued by ge`,
                         {
                             align:
                                 "center"

@@ -156,7 +156,7 @@ const Certificates = () => {
 
                     <p>
                         Download your
-                        HackForge certificates.
+                        Hackathon Management portal certificates.
                     </p>
 
                 </div>

@@ -93,7 +93,7 @@ const sendRegistrationConfirmation = async ({
             ">
 
                 <h1>
-                    HackForge
+                    ge
                 </h1>
 
                 <h2>
@@ -141,7 +141,7 @@ const sendRegistrationConfirmation = async ({
 
                 <p>
                     <strong>
-                        HackForge Team
+                        Hackathon Management portal Team
                     </strong>
                 </p>
 
@@ -190,7 +190,7 @@ const sendDeadlineReminder = async ({
             ">
 
                 <h1>
-                    HackForge
+                    Hackathon Management portal
                 </h1>
 
                 <h2>
@@ -225,7 +225,7 @@ const sendDeadlineReminder = async ({
 
                 <p>
                     <strong>
-                        HackForge Team
+                        Hackathon Management portal Team
                     </strong>
                 </p>
 
@@ -264,7 +264,7 @@ const sendTeamInvitation = async ({
             ">
 
                 <h1>
-                    HackForge
+                    Hackathon Management portal
                 </h1>
 
                 <h2>
@@ -286,13 +286,13 @@ const sendTeamInvitation = async ({
                 </p>
 
                 <p>
-                    Please login to HackForge to view
+                    Please login to Hackathon Management portal to view
                     your team details.
                 </p>
 
                 <p>
                     <strong>
-                        HackForge Team
+                        Hackathon Management portal Team
                     </strong>
                 </p>
 
@@ -347,7 +347,7 @@ const sendResultAnnouncement = async ({
             ">
 
                 <h1>
-                    HackForge
+                    Hackathon Management portal
                 </h1>
 
                 <h2>
@@ -369,13 +369,13 @@ const sendResultAnnouncement = async ({
                 </p>
 
                 <p>
-                    Login to HackForge to view the
+                    Login to Hackathon Management portal to view the
                     complete leaderboard and certificates.
                 </p>
 
                 <p>
                     <strong>
-                        HackForge Team
+                        Hackathon Management portal Team
                     </strong>
                 </p>
 

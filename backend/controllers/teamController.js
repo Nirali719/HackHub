@@ -33,21 +33,24 @@ const createTeam = async (req, res) => {
         message: "Hackathon not found"
       });
     }
-    // Check participant is registered for this hackathon
-const registration = await Registration.findOne({
-    participant: req.user._id,
-    hackathon: hackathon,
-    status: { $ne: "cancelled" }
-});
 
-if (!registration) {
-    return res.status(403).json({
+    // ==========================================
+    // CHECK LEADER REGISTRATION
+    // ==========================================
+
+    const leaderRegistration = await Registration.findOne({
+      participant: req.user._id,
+      hackathon: hackathon
+    });
+
+    if (!leaderRegistration) {
+      return res.status(403).json({
         success: false,
         message: "You must register for this hackathon before creating a team"
-    });
-}
+      });
+    }
 
-    // Check if participant already has a team
+    // Check if participant already leads a team
     const existingTeam = await Team.findOne({
       hackathon: hackathon,
       leader: req.user._id
@@ -316,7 +319,10 @@ const addTeamMember = async (req, res) => {
       });
     }
 
-    // Check ownership
+    // ==========================================
+    // CHECK TEAM LEADER
+    // ==========================================
+
     if (
       req.user.role !== "admin" &&
       team.leader.toString() !== req.user._id.toString()
@@ -327,7 +333,10 @@ const addTeamMember = async (req, res) => {
       });
     }
 
-    // Check user exists
+    // ==========================================
+    // CHECK USER EXISTS
+    // ==========================================
+
     const user = await User.findById(userId);
 
     if (!user) {
@@ -337,7 +346,10 @@ const addTeamMember = async (req, res) => {
       });
     }
 
-    // Only participants can join teams
+    // ==========================================
+    // ONLY PARTICIPANTS CAN JOIN
+    // ==========================================
+
     if (user.role !== "participant") {
       return res.status(400).json({
         success: false,
@@ -345,30 +357,49 @@ const addTeamMember = async (req, res) => {
       });
     }
 
-    // Check if already a member
-    if (team.members.includes(userId)) {
+    // ==========================================
+    // CHECK PARTICIPANT REGISTRATION
+    // ==========================================
+
+    const registration = await Registration.findOne({
+      participant: userId,
+      hackathon: team.hackathon
+    });
+
+    if (!registration) {
+      return res.status(403).json({
+        success: false,
+        message: "This participant must register for the hackathon before joining the team"
+      });
+    }
+
+    // ==========================================
+    // CHECK DUPLICATE MEMBER
+    // ==========================================
+
+    if (team.members.some(
+      member => member.toString() === userId.toString()
+    )) {
       return res.status(400).json({
         success: false,
         message: "User is already a team member"
       });
     }
 
+    // ==========================================
+    // ADD MEMBER
+    // ==========================================
+
     team.members.push(userId);
 
     await team.save();
+
+    // Send team invitation email
     await sendTeamInvitation({
-
-    user,
-
-    team,
-
-    hackathon:
-        await Hackathon.findById(
-            team.hackathon
-        ).select(
-            "title"
-        )
-});
+      user,
+      team,
+      hackathon: await Hackathon.findById(team.hackathon).select("title")
+    });
 
     res.status(200).json({
       success: true,

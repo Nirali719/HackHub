@@ -1,7 +1,8 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
-
+// Load environment variables
+dotenv.config();
 // const User = require("./models/User");
 // const Team = require("./models/Team");
 // const Submission = require("./models/Submission");
@@ -28,8 +29,7 @@ const {
     "./services/deadlineReminderService"
 );
 
-// Load environment variables
-dotenv.config();
+
 
 const app = express();
 
@@ -100,6 +100,31 @@ app.use(
 
 // Connect to MongoDB
 connectDB();
+
+// ==========================================
+// R.9.2
+// AUTOMATIC DEADLINE REMINDER SCHEDULER
+// ==========================================
+
+const runDeadlineReminderCheck = async () => {
+
+    console.log(
+        "Running deadline reminder check..."
+    );
+
+    await sendDeadlineReminders();
+};
+
+
+// Run once when server starts
+runDeadlineReminderCheck();
+
+
+// Run every hour
+setInterval(
+    runDeadlineReminderCheck,
+    60 * 60 * 1000
+);
 
 app.get("/", (req, res) => {
     res.send("Backend server is running!");
