@@ -2,8 +2,13 @@ const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
 // Load environment variables
-dotenv.config();
-// const User = require("./models/User");
+require("dotenv").config();
+
+const {
+    verifyEmailConnection
+} = require("./services/emailService");
+
+verifyEmailConnection();// const User = require("./models/User");
 // const Team = require("./models/Team");
 // const Submission = require("./models/Submission");
 // const Evaluation = require("./models/Evaluation");

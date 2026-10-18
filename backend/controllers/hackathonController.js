@@ -58,14 +58,45 @@ const createHackathon = async (req, res) => {
         success: false,
         message: "Required fields are missing",
       });
-      if (new Date(registrationDeadline) > new Date(submissionDeadline)) {
-  return res.status(400).json({
-    success: false,
-    message: "Registration deadline cannot be after the submission deadline"
-  });
+    }
+      // Registration deadline must be before submission deadline
+if (
+    new Date(registrationDeadline) >
+    new Date(submissionDeadline)
+) {
+    return res.status(400).json({
+        success: false,
+        message:
+            "Registration deadline cannot be after the submission deadline"
+    });
 }
 
-    }
+
+// Submission deadline must not be after hackathon end
+if (
+    new Date(submissionDeadline) >
+    new Date(endDate)
+) {
+    return res.status(400).json({
+        success: false,
+        message:
+            "Submission deadline cannot be after the hackathon end date"
+    });
+}
+
+
+// Start date must not be after end date
+if (
+    new Date(startDate) >
+    new Date(endDate)
+) {
+    return res.status(400).json({
+        success: false,
+        message:
+            "Start date cannot be after the end date"
+    });
+}
+  
 
     const hackathon = await Hackathon.create({
       title,
@@ -98,51 +129,70 @@ const createHackathon = async (req, res) => {
 
 // Get All Hackathons
 const getHackathons = async (req, res) => {
-  try {
-    const hackathons = await Hackathon.find()
-    
-      .populate("organizer", "name email role")
-      .sort({ createdAt: -1 });
+    try {
+        const hackathons = await Hackathon.find()
+            .populate("organizer", "name email role")
+            .sort({ createdAt: -1 });
 
-    res.status(200).json({
-      success: true,
-      count: hackathons.length,
-      hackathons,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error fetching hackathons",
-      error: error.message,
-    });
-  }
+        const updatedHackathons = hackathons.map((hackathon) => {
+            const currentStatus =
+                getCurrentHackathonStatus(hackathon);
+
+            return {
+                ...hackathon.toObject(),
+                status: currentStatus
+            };
+        });
+
+        res.status(200).json({
+            success: true,
+            count: updatedHackathons.length,
+            hackathons: updatedHackathons
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error fetching hackathons",
+            error: error.message
+        });
+    }
 };
 
 
 // Get Single Hackathon
 const getHackathonById = async (req, res) => {
-  try {
-    const hackathon = await Hackathon.findById(req.params.id)
-      .populate("organizer", "name email role");
+    try {
+        const hackathon = await Hackathon.findById(req.params.id)
+            .populate("organizer", "name email role");
 
-    if (!hackathon) {
-      return res.status(404).json({
-        success: false,
-        message: "Hackathon not found",
-      });
+        if (!hackathon) {
+            return res.status(404).json({
+                success: false,
+                message: "Hackathon not found"
+            });
+        }
+
+        const currentStatus =
+            getCurrentHackathonStatus(hackathon);
+
+        const updatedHackathon = {
+            ...hackathon.toObject(),
+            status: currentStatus
+        };
+
+        res.status(200).json({
+            success: true,
+            hackathon: updatedHackathon
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error fetching hackathon",
+            error: error.message
+        });
     }
-
-    res.status(200).json({
-      success: true,
-      hackathon,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error fetching hackathon",
-      error: error.message,
-    });
-  }
 };
 
 

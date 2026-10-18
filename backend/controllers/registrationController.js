@@ -32,6 +32,15 @@ const createRegistration = async (req, res) => {
         message: "Hackathon not found"
       });
     }
+    // Check registration deadline
+const now = new Date();
+
+if (now > new Date(hackathonData.registrationDeadline)) {
+    return res.status(400).json({
+        success: false,
+        message: "Registration for this hackathon has closed."
+    });
+}
 
     // Check if participant already registered
     const existingRegistration = await Registration.findOne({

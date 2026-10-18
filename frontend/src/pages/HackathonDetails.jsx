@@ -655,23 +655,31 @@ const HackathonDetails = () => {
                         REGISTRATION
                     ================================= */}
 
-                    {!isRegistered && (
+                   
 
-                        <button
-                            className="primary-action-button"
-                            onClick={
-                                handleRegistration
-                            }
-                            disabled={
-                                registering
-                            }
-                        >
-                            {registering
-                                ? "Registering..."
-                                : "Register for Hackathon"}
-                        </button>
+                        {new Date() <= new Date(hackathon.registrationDeadline) &&
+    hackathon.status !== "completed" && (
+        <button
+            className="primary-action-button"
+            onClick={handleRegistration}
+            disabled={registering}
+        >
+            {registering
+                ? "Registering..."
+                : "Register for Hackathon"}
+        </button>
+    )}
 
-                    )}
+{new Date() > new Date(hackathon.registrationDeadline) && (
+    <button
+        className="primary-action-button"
+        disabled
+    >
+        Registration Closed
+    </button>
+)}
+
+                   
 
 
                 </div>
